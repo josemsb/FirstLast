@@ -84,7 +84,7 @@ dependencies {
     implementation(libs.firebase.perf)
     implementation(libs.androidx.lifecycle.process)
 
-    implementation("com.google.genai:google-genai:1.0.0")
+    implementation("com.google.genai:google-genai:1.50.0")
     implementation(libs.kotlinx.serialization.json)
 
     testImplementation(libs.junit)
