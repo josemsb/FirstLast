@@ -68,11 +68,12 @@ class FootballAgentService {
                 Log.d(TAG, "Consultando con modelo: ${model.modelName}")
                 val response = model.generateContent(prompt)
                 val text = response.text
-                Log.d(TAG, "Respuesta Gemini: $text")
+                Log.d(TAG, "Respuesta Gemini longitud: ${text?.length} chars")
+                Log.d(TAG, "Respuesta Gemini (primeros 500): ${text?.take(500)}")
                 if (text == null) { Log.w(TAG, "Respuesta vacía, probando fallback"); continue }
                 val games = parseMatches(text)
                 if (games != null) {
-                    Log.d(TAG, "Partidos parseados: ${games.size}")
+                    Log.d(TAG, "Partidos parseados correctamente: ${games.size}")
                     return games
                 }
                 Log.w(TAG, "parseMatches retornó null, probando fallback")
@@ -136,44 +137,82 @@ $teamSection
 
     private fun parseMatches(text: String): List<Game>? {
         return try {
+            Log.d(TAG, "parseMatches RAW (primeros 800 chars): ${text.take(800)}")
+
             val clean = text.trim()
-                .removePrefix("```json")
-                .removePrefix("```")
-                .removeSuffix("```")
+                .let { raw ->
+                    // Strip optional leading ```json or ``` fence
+                    val stripped = if (raw.startsWith("```")) {
+                        val firstNewline = raw.indexOf('\n')
+                        if (firstNewline != -1) raw.substring(firstNewline + 1) else raw
+                    } else raw
+                    // Strip trailing ```
+                    if (stripped.trimEnd().endsWith("```"))
+                        stripped.trimEnd().dropLast(3).trimEnd()
+                    else stripped
+                }
                 .trim()
 
-            val root  = Json.parseToJsonElement(clean).jsonObject
-            val array = root["matches"]?.jsonArray ?: return emptyList()
+            Log.d(TAG, "parseMatches CLEAN (primeros 800 chars): ${clean.take(800)}")
+
+            val root = try {
+                Json.parseToJsonElement(clean).jsonObject
+            } catch (e: Exception) {
+                Log.e(TAG, "Error parseToJsonElement: ${e.message}")
+                return null
+            }
+
+            val array = root["matches"]?.jsonArray
+            if (array == null) {
+                Log.e(TAG, "Campo 'matches' no encontrado. Keys presentes: ${root.keys}")
+                return emptyList()
+            }
+            Log.d(TAG, "Número de elementos en 'matches': ${array.size}")
 
             array.mapNotNull { el ->
                 try {
                     val obj      = el.jsonObject
-                    val homePos  = obj["homePosition"]?.jsonPrimitive?.intOrNull  ?: return@mapNotNull null
-                    val visitPos = obj["visitingPosition"]?.jsonPrimitive?.intOrNull ?: return@mapNotNull null
+                    val homePos  = obj["homePosition"]?.jsonPrimitive?.intOrNull
+                    val visitPos = obj["visitingPosition"]?.jsonPrimitive?.intOrNull
                     val size     = obj["leagueSize"]?.jsonPrimitive?.intOrNull ?: 20
 
-                    val rawLeague = obj["league"]?.jsonPrimitive?.content       ?: return@mapNotNull null
-                    val rawHome   = obj["homeTeam"]?.jsonPrimitive?.content      ?: return@mapNotNull null
-                    val rawVisit  = obj["visitingTeam"]?.jsonPrimitive?.content  ?: return@mapNotNull null
-                    val rawDate   = obj["dateTimeIso"]?.jsonPrimitive?.content   ?: return@mapNotNull null
+                    val rawLeague = obj["league"]?.jsonPrimitive?.content
+                    val rawHome   = obj["homeTeam"]?.jsonPrimitive?.content
+                    val rawVisit  = obj["visitingTeam"]?.jsonPrimitive?.content
+                    val rawDate   = obj["dateTimeIso"]?.jsonPrimitive?.content
 
-                    // Match against dictionaries — fallback to original if unknown
-                    // (unknown team → imageResId = 0 → generic icon in UI)
+                    Log.d(TAG, "Item: league=$rawLeague home=$rawHome($homePos) visit=$rawVisit($visitPos) date=$rawDate size=$size")
+
+                    if (homePos == null)  { Log.w(TAG, "homePosition nulo, skip"); return@mapNotNull null }
+                    if (visitPos == null) { Log.w(TAG, "visitingPosition nulo, skip"); return@mapNotNull null }
+                    if (rawLeague == null){ Log.w(TAG, "league nulo, skip"); return@mapNotNull null }
+                    if (rawHome == null)  { Log.w(TAG, "homeTeam nulo, skip"); return@mapNotNull null }
+                    if (rawVisit == null) { Log.w(TAG, "visitingTeam nulo, skip"); return@mapNotNull null }
+                    if (rawDate == null)  { Log.w(TAG, "dateTimeIso nulo, skip"); return@mapNotNull null }
+
                     val leagueKey = KeyMatcher.match(rawLeague, validLeagueKeys)
                     val homeKey   = KeyMatcher.match(rawHome,   validTeamKeys)
                     val visitKey  = KeyMatcher.match(rawVisit,  validTeamKeys)
 
+                    Log.d(TAG, "Keys resueltos: league=$leagueKey home=$homeKey visit=$visitKey")
+
                     Game(
-                        dateTimeIso    = rawDate,
-                        homePosition   = homePos,
-                        homeTeam       = homeKey,
-                        season         = leagueKey,
+                        dateTimeIso      = rawDate,
+                        homePosition     = homePos,
+                        homeTeam         = homeKey,
+                        season           = leagueKey,
                         visitingPosition = visitPos,
-                        visitingTeam   = visitKey,
-                        leagueSize     = size
+                        visitingTeam     = visitKey,
+                        leagueSize       = size
                     )
-                } catch (_: Exception) { null }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Excepción parseando item: ${e.message} — item=$el")
+                    null
+                }
             }
-        } catch (_: Exception) { null }
+        } catch (e: Exception) {
+            Log.e(TAG, "Excepción general en parseMatches: ${e.message}")
+            null
+        }
     }
 }
