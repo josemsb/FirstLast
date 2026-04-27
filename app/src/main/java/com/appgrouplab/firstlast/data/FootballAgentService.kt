@@ -49,6 +49,8 @@ class FootballAgentService {
         val prompt = buildPrompt(today)
         var lastError: Exception? = null
 
+        Log.d(TAG, "──── PROMPT ────\n$prompt\n────────────────")
+
         for (model in MODELS) {
             try {
                 Log.d(TAG, "Consultando con modelo: $model")
