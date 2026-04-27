@@ -3,6 +3,10 @@ package com.appgrouplab.firstlast.data
 import android.util.Log
 import com.appgrouplab.firstlast.BuildConfig
 import com.appgrouplab.firstlast.model.Game
+import com.google.genai.Client
+import com.google.genai.types.GenerateContentConfig
+import com.google.genai.types.GoogleSearch
+import com.google.genai.types.Tool
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -10,9 +14,6 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import java.io.OutputStreamWriter
-import java.net.HttpURLConnection
-import java.net.URL
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -20,13 +21,29 @@ class FootballAgentService {
 
     private companion object {
         const val TAG = "FootballAgent"
-        const val API_KEY = BuildConfig.GEMINI_API_KEY
-        const val BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
         val MODELS = listOf("gemini-2.5-flash", "gemini-2.0-flash")
     }
 
     private val validLeagueKeys = TOURNAMENT_DICTIONARY.keys.toSet()
     private val validTeamKeys   = TEAM_DICTIONARY.keys.toSet()
+
+    // New unified SDK client
+    private val client = Client.builder()
+        .apiKey(BuildConfig.GEMINI_API_KEY)
+        .build()
+
+    // Google Search tool for real-time grounding
+    private val searchTool = Tool.builder()
+        .googleSearch(GoogleSearch.builder().build())
+        .build()
+
+    private val config = GenerateContentConfig.builder()
+        .tools(listOf(searchTool))
+        .temperature(0.3f)
+        .topK(40)
+        .topP(0.95f)
+        .maxOutputTokens(1024)
+        .build()
 
     // ── Fetch ──────────────────────────────────────────────────────────────────
 
@@ -37,11 +54,19 @@ class FootballAgentService {
         for (model in MODELS) {
             try {
                 Log.d(TAG, "Consultando con modelo: $model")
-                val text = callGeminiRest(model, prompt)
+
+                val text = withContext(Dispatchers.IO) {
+                    val response = client.models.generateContent(model, prompt, config)
+                    val usage = response.usageMetadata()
+                    Log.d(TAG, "Tokens — prompt: ${usage?.map { it.promptTokenCount() }} | total: ${usage?.map { it.totalTokenCount() }}")
+                    response.text() ?: throw Exception("Respuesta sin texto del modelo")
+                }
+
                 Log.d(TAG, "Respuesta Gemini longitud: ${text.length} chars")
                 text.chunked(3000).forEachIndexed { i, chunk ->
                     Log.d(TAG, "Respuesta Gemini [parte ${i + 1}]: $chunk")
                 }
+
                 val games = parseMatches(text)
                 if (games != null) {
                     Log.d(TAG, "Partidos parseados correctamente: ${games.size}")
@@ -59,80 +84,10 @@ class FootballAgentService {
         throw classifyError(lastError)
     }
 
-    // ── REST call with Google Search grounding ─────────────────────────────────
-
-    private suspend fun callGeminiRest(model: String, prompt: String): String =
-        withContext(Dispatchers.IO) {
-            val url = URL("$BASE_URL/$model:generateContent?key=$API_KEY")
-            val connection = url.openConnection() as HttpURLConnection
-            connection.requestMethod = "POST"
-            connection.setRequestProperty("Content-Type", "application/json")
-            connection.doOutput = true
-            connection.connectTimeout = 30_000
-            connection.readTimeout   = 60_000
-
-            val body = buildRequestBody(prompt)
-            OutputStreamWriter(connection.outputStream).use { it.write(body) }
-
-            val responseCode = connection.responseCode
-            val raw = if (responseCode == 200) {
-                connection.inputStream.bufferedReader().readText()
-            } else {
-                val err = connection.errorStream?.bufferedReader()?.readText() ?: "sin detalle"
-                throw Exception("HTTP $responseCode: $err")
-            }
-
-            // Log token usage
-            val json = Json.parseToJsonElement(raw).jsonObject
-            val usage = json["usageMetadata"]?.jsonObject
-            Log.d(TAG, "Tokens — prompt: ${usage?.get("promptTokenCount")?.jsonPrimitive?.intOrNull}" +
-                    " | respuesta: ${usage?.get("candidatesTokenCount")?.jsonPrimitive?.intOrNull}" +
-                    " | total: ${usage?.get("totalTokenCount")?.jsonPrimitive?.intOrNull}")
-
-            // Extract text from candidates[0].content.parts[0].text
-            json["candidates"]
-                ?.jsonArray?.getOrNull(0)
-                ?.jsonObject?.get("content")
-                ?.jsonObject?.get("parts")
-                ?.jsonArray?.getOrNull(0)
-                ?.jsonObject?.get("text")
-                ?.jsonPrimitive?.content
-                ?: throw Exception("No se encontró texto en la respuesta del modelo")
-        }
-
-    // ── Request body ───────────────────────────────────────────────────────────
-
-    private fun buildRequestBody(prompt: String): String {
-        val escaped = prompt
-            .replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r")
-            .replace("\t", "\\t")
-
-        return """
-            {
-              "contents": [{"parts": [{"text": "$escaped"}]}],
-              "tools": [{"googleSearch": {}}],
-              "generationConfig": {
-                "temperature": 0.3,
-                "topK": 40,
-                "topP": 0.95,
-                "maxOutputTokens": 1024
-              },
-              "safetySettings": [
-                {"category": "HARM_CATEGORY_HARASSMENT",  "threshold": "BLOCK_ONLY_HIGH"},
-                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"}
-              ]
-            }
-        """.trimIndent()
-    }
-
     // ── Prompt ─────────────────────────────────────────────────────────────────
 
     private fun buildPrompt(today: LocalDate): String {
         val dateStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
-
         val leagueSection = TOURNAMENT_DICTIONARY.entries.joinToString(" | ") { (k, v) -> "$k=$v" }
         val teams = TEAM_DICTIONARY.keys.joinToString(",")
 
