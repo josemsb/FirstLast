@@ -50,20 +50,28 @@ class GameViewModel(
     private fun sortAndFilter(games: List<Game>): List<Game> {
         val now = LocalDateTime.now()
 
+        Log.d(TAG, "sortAndFilter: recibidos ${games.size} partidos del agente")
+
         // Filter: one team in top 5, other in the last 5 of the table
         val filtered = games.filter { game ->
             val h = game.homePosition
             val v = game.visitingPosition
             val bottomThreshold = game.leagueSize - 4
-            ((h in 1..5) && (v >= bottomThreshold)) ||
-            ((v in 1..5) && (h >= bottomThreshold))
+            val passes = ((h in 1..5) && (v >= bottomThreshold)) ||
+                         ((v in 1..5) && (h >= bottomThreshold))
+            if (!passes) Log.d(TAG, "  Descartado: ${game.homeTeam}($h) vs ${game.visitingTeam}($v) liga=${game.season} size=${game.leagueSize} umbral=$bottomThreshold")
+            passes
         }
+
+        Log.d(TAG, "sortAndFilter: ${filtered.size} partidos tras filtro top5/bottom5")
 
         // Partition: upcoming matches (dateTime > now) vs past (dateTime <= now)
         val (upcoming, past) = filtered.partition { game ->
             try { LocalDateTime.parse(game.dateTimeIso).isAfter(now) }
             catch (_: Exception) { false }
         }
+
+        Log.d(TAG, "sortAndFilter: ${upcoming.size} próximos + ${past.size} pasados")
 
         // Upcoming: soonest first; Past: most recently started first
         return upcoming.sortedBy { it.dateTimeIso } +

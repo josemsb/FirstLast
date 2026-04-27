@@ -29,7 +29,7 @@ class FootballAgentService {
         temperature = 0.3f
         topK = 40
         topP = 0.95f
-        maxOutputTokens = 512
+        maxOutputTokens = 1024
         stopSequences = listOf("STOP")
     }
 
@@ -114,20 +114,21 @@ class FootballAgentService {
     private fun buildPrompt(today: LocalDate): String {
         val dateStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
-        // Leagues as CSV (auto-updated when dict changes)
-        val leagues = TOURNAMENT_DICTIONARY.keys.joinToString(",")
+        // Leagues: key → display name (auto-updated when dict changes)
+        val leagueSection = TOURNAMENT_DICTIONARY.entries.joinToString(" | ") { (k, v) -> "$k=$v" }
 
         // Teams as CSV (auto-updated when dict changes)
         val teams = TEAM_DICTIONARY.keys.joinToString(",")
 
         return """
-            Fixtures $dateStr. JSON only, no markdown.
-            LIGAS(key exacto): $leagues
-            REGLA: partido donde un equipo es posición 1-5 Y el otro en las últimas 5 del total de equipos de esa liga.
-            EQUIPOS(key exacto): $teams
-            Si el equipo no está en la lista usa el snake_case más parecido.
-            Responde SOLO: {"matches":[{"league":"KEY","homeTeam":"KEY","homePosition":1,"visitingTeam":"KEY","visitingPosition":18,"dateTimeIso":"${dateStr}T20:00:00","leagueSize":20}]}
-            Sin partidos: {"matches":[]}
+            Eres un experto en fútbol. Lista los partidos del $dateStr en estas ligas.
+            LIGAS (usa el key exacto en "league"): $leagueSection
+            REGLA: incluir SOLO partidos donde un equipo está en posición 1-5 Y el rival en las últimas 5 posiciones de su liga.
+            EQUIPOS válidos (usa key exacto en homeTeam/visitingTeam): $teams
+            Si el equipo no está en la lista, usa el snake_case más similar.
+            Devuelve ÚNICAMENTE JSON sin markdown:
+            {"matches":[{"league":"KEY","homeTeam":"KEY","homePosition":1,"visitingTeam":"KEY","visitingPosition":18,"dateTimeIso":"${dateStr}T20:00:00","leagueSize":20}]}
+            Sin partidos que cumplan la regla: {"matches":[]}
         """.trimIndent()
     }
 
