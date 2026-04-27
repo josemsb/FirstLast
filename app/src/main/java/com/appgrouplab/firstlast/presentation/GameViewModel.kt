@@ -1,7 +1,9 @@
 package com.appgrouplab.firstlast.presentation
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.appgrouplab.firstlast.BuildConfig
 import com.appgrouplab.firstlast.data.GameState
 import com.appgrouplab.firstlast.data.GeminiGameRepository
 import com.appgrouplab.firstlast.model.Game
@@ -18,22 +20,28 @@ class GameViewModel(
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : ViewModel() {
 
+    private companion object { const val TAG = "GameViewModel" }
+
     private val _uiState = MutableStateFlow<GameUiState>(GameUiState.Loading)
     val uiState: StateFlow<GameUiState> = _uiState.asStateFlow()
 
     init {
+        Log.d(TAG, "▶ ViewModel creado")
+        Log.d(TAG, "API Key presente: ${BuildConfig.GEMINI_API_KEY.isNotEmpty()}")
         loadTodayMatches()
     }
 
     fun retry() = loadTodayMatches()
 
     private fun loadTodayMatches() {
+        Log.d(TAG, "loadTodayMatches() llamado")
         viewModelScope.launch(dispatcher) {
             repository.getTodayMatches().collect { state ->
+                Log.d(TAG, "Estado recibido: $state")
                 _uiState.value = when (state) {
                     is GameState.Loading -> GameUiState.Loading
                     is GameState.Success -> GameUiState.Success(sortAndFilter(state.games))
-                    is GameState.Error -> GameUiState.Error(state.message)
+                    is GameState.Error   -> GameUiState.Error(state.message)
                 }
             }
         }
