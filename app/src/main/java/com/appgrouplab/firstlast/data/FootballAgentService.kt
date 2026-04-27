@@ -71,7 +71,9 @@ class FootballAgentService {
                 Log.d(TAG, "Tokens — prompt: ${usage?.promptTokenCount} | respuesta: ${usage?.candidatesTokenCount} | total: ${usage?.totalTokenCount}")
                 val text = response.text
                 Log.d(TAG, "Respuesta Gemini longitud: ${text?.length} chars")
-                Log.d(TAG, "Respuesta Gemini (primeros 500): ${text?.take(500)}")
+                text?.chunked(3000)?.forEachIndexed { i, chunk ->
+                    Log.d(TAG, "Respuesta Gemini [parte ${i + 1}]: $chunk")
+                }
                 if (text == null) { Log.w(TAG, "Respuesta vacía, probando fallback"); continue }
                 val games = parseMatches(text)
                 if (games != null) {
