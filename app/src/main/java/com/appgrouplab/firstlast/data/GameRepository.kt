@@ -23,21 +23,34 @@ class GeminiGameRepository(
         Log.d(TAG, "▶ getTodayMatches iniciado")
         emit(GameState.Loading)
 
-        val today = LocalDate.now()
+        val today  = LocalDate.now()
         val todayStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
         Log.d(TAG, "Fecha de hoy: $todayStr")
 
-        // Serve from cache if already consulted today
         val cachedDate = cache.getCachedDate()
         Log.d(TAG, "Cache fecha guardada: $cachedDate")
+
+        // Si la cache es de un día anterior → limpiar para no servir datos viejos
+        if (cachedDate != null && cachedDate != todayStr) {
+            Log.d(TAG, "Nuevo día detectado → limpiando cache anterior ($cachedDate)")
+            cache.clearCache()
+        }
+
+        // Intentar servir desde cache SOLO si es de hoy y tiene partidos
         if (cachedDate == todayStr) {
             val cachedJson = cache.getCachedJson()
             if (cachedJson != null) {
                 try {
                     val games = json.decodeFromString<List<Game>>(cachedJson)
-                    Log.d(TAG, "✅ Sirviendo desde cache: ${games.size} partidos")
-                    emit(GameState.Success(games))
-                    return@flow
+                    if (games.isNotEmpty()) {
+                        Log.d(TAG, "✅ Sirviendo desde cache: ${games.size} partidos")
+                        emit(GameState.Success(games))
+                        return@flow
+                    } else {
+                        // Cache de hoy pero vacía → ir a Gemini por si ahora hay partidos
+                        Log.d(TAG, "Cache de hoy vacía (0 partidos) → consultando Gemini")
+                        cache.clearCache()
+                    }
                 } catch (e: Exception) {
                     Log.e(TAG, "Error al leer cache, limpiando: ${e.message}")
                     cache.clearCache()
@@ -45,7 +58,7 @@ class GeminiGameRepository(
             }
         }
 
-        // Query AI agent and cache result for the day
+        // Consultar agente Gemini y guardar resultado
         Log.d(TAG, "Llamando al agente Gemini...")
         try {
             val games = agentService.fetchTodayMatches(today)
