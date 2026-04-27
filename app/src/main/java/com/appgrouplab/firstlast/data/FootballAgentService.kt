@@ -24,7 +24,7 @@ class FootballAgentService {
         const val TAG = "FootballAgent"
         const val API_KEY = BuildConfig.GEMINI_API_KEY
         const val GEMINI_2_5_FLASH = "gemini-2.5-flash"
-        const val GEMINI_2_5_FLASH_LITE = "gemini-1.5-flash"
+        const val GEMINI_2_5_FLASH_LITE = "gemini-2.0-flash"
     }
 
     private val generationConfig = generationConfig {
