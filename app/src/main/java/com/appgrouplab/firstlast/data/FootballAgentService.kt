@@ -61,6 +61,8 @@ class FootballAgentService {
 
     suspend fun fetchTodayMatches(today: LocalDate): List<Game> {
         val prompt = buildPrompt(today)
+        var lastError: Exception? = null
+
         for (model in models) {
             try {
                 Log.d(TAG, "Consultando con modelo: ${model.modelName}")
@@ -79,11 +81,30 @@ class FootballAgentService {
                 Log.w(TAG, "parseMatches retornó null, probando fallback")
             } catch (e: Exception) {
                 Log.e(TAG, "Error con modelo ${model.modelName}: ${e.message}")
+                lastError = e
                 continue
             }
         }
-        Log.e(TAG, "Todos los modelos fallaron. Se retorna lista vacía.")
-        return emptyList()
+
+        Log.e(TAG, "Todos los modelos fallaron.")
+        throw classifyError(lastError)
+    }
+
+    private fun classifyError(e: Exception?): Exception {
+        val msg = e?.message?.lowercase() ?: ""
+        return when {
+            msg.contains("quota") || msg.contains("429") ->
+                Exception("Límite de consultas alcanzado. Intenta en unos minutos.")
+            msg.contains("not_found") || msg.contains("404") ->
+                Exception("Modelo no disponible temporalmente.")
+            msg.contains("unable to resolve") || msg.contains("failed to connect")
+                    || msg.contains("network") || msg.contains("socket") ->
+                Exception("Sin conexión a internet. Verifica tu red.")
+            msg.contains("api_key") || msg.contains("invalid") || msg.contains("401") ->
+                Exception("Error de autenticación con el servicio.")
+            else ->
+                Exception("No se pudo consultar el servicio. ${e?.message ?: ""}")
+        }
     }
 
     // ── Prompt (generated dynamically from the dictionaries) ──────────────────
