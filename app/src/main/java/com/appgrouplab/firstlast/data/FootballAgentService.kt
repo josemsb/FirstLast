@@ -1,5 +1,6 @@
 package com.appgrouplab.firstlast.data
 
+import android.util.Log
 import com.appgrouplab.firstlast.BuildConfig
 import com.appgrouplab.firstlast.model.Game
 import com.google.ai.client.generativeai.GenerativeModel
@@ -20,8 +21,9 @@ import java.util.Locale
 class FootballAgentService {
 
     private companion object {
+        const val TAG = "FootballAgent"
         const val API_KEY = BuildConfig.GEMINI_API_KEY
-        const val GEMINI_2_5_FLASH_LITE = "gemini-2.5-flash-lite"
+        const val GEMINI_2_0_FLASH_LITE = "gemini-2.0-flash-lite"
         const val GEMINI_2_5_FLASH = "gemini-2.5-flash"
     }
 
@@ -40,7 +42,7 @@ class FootballAgentService {
 
     private val models = listOf(
         GenerativeModel(
-            modelName = GEMINI_2_5_FLASH_LITE,
+            modelName = GEMINI_2_0_FLASH_LITE,
             apiKey = API_KEY,
             generationConfig = generationConfig,
             safetySettings = safetySettings
@@ -63,14 +65,23 @@ class FootballAgentService {
         val prompt = buildPrompt(today)
         for (model in models) {
             try {
+                Log.d(TAG, "Consultando con modelo: ${model.modelName}")
                 val response = model.generateContent(prompt)
-                val text = response.text ?: continue
+                val text = response.text
+                Log.d(TAG, "Respuesta Gemini: $text")
+                if (text == null) { Log.w(TAG, "Respuesta vacía, probando fallback"); continue }
                 val games = parseMatches(text)
-                if (games != null) return games
-            } catch (_: Exception) {
+                if (games != null) {
+                    Log.d(TAG, "Partidos parseados: ${games.size}")
+                    return games
+                }
+                Log.w(TAG, "parseMatches retornó null, probando fallback")
+            } catch (e: Exception) {
+                Log.e(TAG, "Error con modelo ${model.modelName}: ${e.message}")
                 continue
             }
         }
+        Log.e(TAG, "Todos los modelos fallaron. Se retorna lista vacía.")
         return emptyList()
     }
 
