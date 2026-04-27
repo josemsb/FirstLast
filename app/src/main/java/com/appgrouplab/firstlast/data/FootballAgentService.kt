@@ -40,8 +40,6 @@ class FootballAgentService {
     private val config = GenerateContentConfig.builder()
         .tools(listOf(searchTool))
         .temperature(0.3f)
-        .topK(40)
-        .topP(0.95f)
         .maxOutputTokens(1024)
         .build()
 
