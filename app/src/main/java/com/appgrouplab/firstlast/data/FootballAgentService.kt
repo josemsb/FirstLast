@@ -5,8 +5,10 @@ import com.appgrouplab.firstlast.BuildConfig
 import com.appgrouplab.firstlast.model.Game
 import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.BlockThreshold
+import com.google.ai.client.generativeai.type.GoogleSearch
 import com.google.ai.client.generativeai.type.HarmCategory
 import com.google.ai.client.generativeai.type.SafetySetting
+import com.google.ai.client.generativeai.type.Tool
 import com.google.ai.client.generativeai.type.generationConfig
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.intOrNull
@@ -38,18 +40,23 @@ class FootballAgentService {
         SafetySetting(HarmCategory.HATE_SPEECH, BlockThreshold.MEDIUM_AND_ABOVE),
     )
 
+    // Google Search grounding: gives Gemini real-time internet access for today's fixtures
+    private val searchTool = Tool(googleSearch = GoogleSearch())
+
     private val models = listOf(
         GenerativeModel(
             modelName = GEMINI_2_5_FLASH,
             apiKey = API_KEY,
             generationConfig = generationConfig,
-            safetySettings = safetySettings
+            safetySettings = safetySettings,
+            tools = listOf(searchTool)
         ),
         GenerativeModel(
             modelName = GEMINI_2_5_FLASH_LITE,
             apiKey = API_KEY,
             generationConfig = generationConfig,
-            safetySettings = safetySettings
+            safetySettings = safetySettings,
+            tools = listOf(searchTool)
         )
     )
 
@@ -121,9 +128,9 @@ class FootballAgentService {
         val teams = TEAM_DICTIONARY.keys.joinToString(",")
 
         return """
-            Eres un experto en fútbol. Lista los partidos del $dateStr en estas ligas.
+            Busca en internet los partidos de fútbol programados para HOY $dateStr en estas ligas.
             LIGAS (usa el key exacto en "league"): $leagueSection
-            REGLA: incluir SOLO partidos donde un equipo está en posición 1-5 Y el rival en las últimas 5 posiciones de su liga.
+            Consulta la tabla de posiciones actual de cada liga y aplica esta REGLA: incluir SOLO partidos donde un equipo está en posición 1-5 Y el rival en las últimas 5 posiciones de su liga.
             EQUIPOS válidos (usa key exacto en homeTeam/visitingTeam): $teams
             Si el equipo no está en la lista, usa el snake_case más similar.
             Devuelve ÚNICAMENTE JSON sin markdown:
