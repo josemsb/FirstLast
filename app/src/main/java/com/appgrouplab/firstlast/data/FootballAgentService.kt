@@ -23,8 +23,8 @@ class FootballAgentService {
     private companion object {
         const val TAG = "FootballAgent"
         const val API_KEY = BuildConfig.GEMINI_API_KEY
-        const val GEMINI_2_0_FLASH_LITE = "gemini-2.0-flash-lite"
         const val GEMINI_2_5_FLASH = "gemini-2.5-flash"
+        const val GEMINI_2_5_FLASH_LITE = "gemini-2.5-flash-lite-preview-06-17"
     }
 
     private val generationConfig = generationConfig {
@@ -42,13 +42,13 @@ class FootballAgentService {
 
     private val models = listOf(
         GenerativeModel(
-            modelName = GEMINI_2_0_FLASH_LITE,
+            modelName = GEMINI_2_5_FLASH,
             apiKey = API_KEY,
             generationConfig = generationConfig,
             safetySettings = safetySettings
         ),
         GenerativeModel(
-            modelName = GEMINI_2_5_FLASH,
+            modelName = GEMINI_2_5_FLASH_LITE,
             apiKey = API_KEY,
             generationConfig = generationConfig,
             safetySettings = safetySettings
