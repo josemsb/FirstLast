@@ -66,6 +66,16 @@ android {
             excludes += "META-INF/INDEX.LIST"
             excludes += "META-INF/DEPENDENCIES"
             excludes += "META-INF/io.netty.versions.properties"
+            excludes += "**/*.proto"
+        }
+    }
+}
+
+configurations.all {
+    resolutionStrategy.eachDependency {
+        if (requested.group == "com.google.protobuf" && requested.name == "protobuf-java") {
+            useTarget("com.google.protobuf:protobuf-javalite:${requested.version}")
+            because("Android requires protobuf-javalite, not protobuf-java")
         }
     }
 }
