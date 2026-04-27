@@ -15,8 +15,6 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-import java.time.format.TextStyle
-import java.util.Locale
 
 class FootballAgentService {
 
@@ -31,7 +29,7 @@ class FootballAgentService {
         temperature = 0.3f
         topK = 40
         topP = 0.95f
-        maxOutputTokens = 2048
+        maxOutputTokens = 512
         stopSequences = listOf("STOP")
     }
 
@@ -67,6 +65,8 @@ class FootballAgentService {
             try {
                 Log.d(TAG, "Consultando con modelo: ${model.modelName}")
                 val response = model.generateContent(prompt)
+                val usage = response.usageMetadata
+                Log.d(TAG, "Tokens — prompt: ${usage?.promptTokenCount} | respuesta: ${usage?.candidatesTokenCount} | total: ${usage?.totalTokenCount}")
                 val text = response.text
                 Log.d(TAG, "Respuesta Gemini longitud: ${text?.length} chars")
                 Log.d(TAG, "Respuesta Gemini (primeros 500): ${text?.take(500)}")
@@ -89,47 +89,22 @@ class FootballAgentService {
     // ── Prompt (generated dynamically from the dictionaries) ──────────────────
 
     private fun buildPrompt(today: LocalDate): String {
-        val dateStr   = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val dayOfWeek = today.dayOfWeek.getDisplayName(TextStyle.FULL, Locale("es", "ES"))
+        val dateStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
-        // League section: "key" → Display name  (auto-updated when dict changes)
-        val leagueSection = TOURNAMENT_DICTIONARY.entries.joinToString("\n") { (key, name) ->
-            "  \"$key\" → $name"
-        }
+        // Leagues as CSV (auto-updated when dict changes)
+        val leagues = TOURNAMENT_DICTIONARY.keys.joinToString(",")
 
-        // Team section: all valid team keys listed in blocks of 15 (auto-updated when dict changes)
-        val teamSection = TEAM_DICTIONARY.keys
-            .chunked(15)
-            .joinToString("\n") { chunk -> "  " + chunk.joinToString(", ") }
+        // Teams as CSV (auto-updated when dict changes)
+        val teams = TEAM_DICTIONARY.keys.joinToString(",")
 
         return """
-            Eres un experto en fútbol con conocimiento actualizado de las tablas de posiciones y los fixtures de las principales ligas del mundo.
-
-            Necesito los partidos de HOY: $dayOfWeek $dateStr.
-
-            LIGAS A CONSULTAR (usa EXACTAMENTE el key indicado en el campo "league"):
-$leagueSection
-
-            REGLA OBLIGATORIA: Solo incluye partidos donde:
-            - Un equipo está en el TOP 5 de la tabla (posición 1–5) Y
-            - El otro está en las ÚLTIMAS 5 posiciones (zona de descenso)
-
-            EQUIPOS VÁLIDOS para "homeTeam" y "visitingTeam" (usa EXACTAMENTE uno de estos keys):
-$teamSection
-
-            Si el equipo no aparece en la lista de claves, usa el nombre en snake_case más aproximado de la lista.
-
-            Devuelve ÚNICAMENTE un JSON válido, sin markdown ni explicaciones:
-            {"matches":[{"league":"liga_espanola","homeTeam":"real_madrid","homePosition":1,"visitingTeam":"valencia","visitingPosition":18,"dateTimeIso":"${dateStr}T20:00:00","leagueSize":20}]}
-
-            Reglas del JSON:
-            - "league"       → key exacto de la lista de ligas
-            - "homeTeam"     → key exacto de la lista de equipos
-            - "visitingTeam" → key exacto de la lista de equipos
-            - "dateTimeIso"  → formato "YYYY-MM-DDTHH:MM:SS" en hora local del país
-            - "leagueSize"   → número total de equipos en esa liga esta temporada
-
-            Si no hay partidos que cumplan la condición hoy: {"matches":[]}
+            Fixtures $dateStr. JSON only, no markdown.
+            LIGAS(key exacto): $leagues
+            REGLA: partido donde un equipo es posición 1-5 Y el otro en las últimas 5 del total de equipos de esa liga.
+            EQUIPOS(key exacto): $teams
+            Si el equipo no está en la lista usa el snake_case más parecido.
+            Responde SOLO: {"matches":[{"league":"KEY","homeTeam":"KEY","homePosition":1,"visitingTeam":"KEY","visitingPosition":18,"dateTimeIso":"${dateStr}T20:00:00","leagueSize":20}]}
+            Sin partidos: {"matches":[]}
         """.trimIndent()
     }
 
