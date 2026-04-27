@@ -3,18 +3,16 @@ package com.appgrouplab.firstlast.data
 import android.util.Log
 import com.appgrouplab.firstlast.BuildConfig
 import com.appgrouplab.firstlast.model.Game
-import com.google.ai.client.generativeai.GenerativeModel
-import com.google.ai.client.generativeai.type.BlockThreshold
-import com.google.ai.client.generativeai.type.GoogleSearch
-import com.google.ai.client.generativeai.type.HarmCategory
-import com.google.ai.client.generativeai.type.SafetySetting
-import com.google.ai.client.generativeai.type.Tool
-import com.google.ai.client.generativeai.type.generationConfig
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import java.io.OutputStreamWriter
+import java.net.HttpURLConnection
+import java.net.URL
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -23,44 +21,10 @@ class FootballAgentService {
     private companion object {
         const val TAG = "FootballAgent"
         const val API_KEY = BuildConfig.GEMINI_API_KEY
-        const val GEMINI_2_5_FLASH = "gemini-2.5-flash"
-        const val GEMINI_2_5_FLASH_LITE = "gemini-2.0-flash"
+        const val BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
+        val MODELS = listOf("gemini-2.5-flash", "gemini-2.0-flash")
     }
 
-    private val generationConfig = generationConfig {
-        temperature = 0.3f
-        topK = 40
-        topP = 0.95f
-        maxOutputTokens = 1024
-        stopSequences = listOf("STOP")
-    }
-
-    private val safetySettings = listOf(
-        SafetySetting(HarmCategory.HARASSMENT, BlockThreshold.ONLY_HIGH),
-        SafetySetting(HarmCategory.HATE_SPEECH, BlockThreshold.MEDIUM_AND_ABOVE),
-    )
-
-    // Google Search grounding: gives Gemini real-time internet access for today's fixtures
-    private val searchTool = Tool(googleSearch = GoogleSearch())
-
-    private val models = listOf(
-        GenerativeModel(
-            modelName = GEMINI_2_5_FLASH,
-            apiKey = API_KEY,
-            generationConfig = generationConfig,
-            safetySettings = safetySettings,
-            tools = listOf(searchTool)
-        ),
-        GenerativeModel(
-            modelName = GEMINI_2_5_FLASH_LITE,
-            apiKey = API_KEY,
-            generationConfig = generationConfig,
-            safetySettings = safetySettings,
-            tools = listOf(searchTool)
-        )
-    )
-
-    // Precomputed key sets for matching (built once at service creation)
     private val validLeagueKeys = TOURNAMENT_DICTIONARY.keys.toSet()
     private val validTeamKeys   = TEAM_DICTIONARY.keys.toSet()
 
@@ -70,18 +34,14 @@ class FootballAgentService {
         val prompt = buildPrompt(today)
         var lastError: Exception? = null
 
-        for (model in models) {
+        for (model in MODELS) {
             try {
-                Log.d(TAG, "Consultando con modelo: ${model.modelName}")
-                val response = model.generateContent(prompt)
-                val usage = response.usageMetadata
-                Log.d(TAG, "Tokens — prompt: ${usage?.promptTokenCount} | respuesta: ${usage?.candidatesTokenCount} | total: ${usage?.totalTokenCount}")
-                val text = response.text
-                Log.d(TAG, "Respuesta Gemini longitud: ${text?.length} chars")
-                text?.chunked(3000)?.forEachIndexed { i, chunk ->
+                Log.d(TAG, "Consultando con modelo: $model")
+                val text = callGeminiRest(model, prompt)
+                Log.d(TAG, "Respuesta Gemini longitud: ${text.length} chars")
+                text.chunked(3000).forEachIndexed { i, chunk ->
                     Log.d(TAG, "Respuesta Gemini [parte ${i + 1}]: $chunk")
                 }
-                if (text == null) { Log.w(TAG, "Respuesta vacía, probando fallback"); continue }
                 val games = parseMatches(text)
                 if (games != null) {
                     Log.d(TAG, "Partidos parseados correctamente: ${games.size}")
@@ -89,7 +49,7 @@ class FootballAgentService {
                 }
                 Log.w(TAG, "parseMatches retornó null, probando fallback")
             } catch (e: Exception) {
-                Log.e(TAG, "Error con modelo ${model.modelName}: ${e.message}")
+                Log.e(TAG, "Error con modelo $model: ${e.message}")
                 lastError = e
                 continue
             }
@@ -99,32 +59,81 @@ class FootballAgentService {
         throw classifyError(lastError)
     }
 
-    private fun classifyError(e: Exception?): Exception {
-        val msg = e?.message?.lowercase() ?: ""
-        return when {
-            msg.contains("quota") || msg.contains("429") ->
-                Exception("Límite de consultas alcanzado. Intenta en unos minutos.")
-            msg.contains("not_found") || msg.contains("404") ->
-                Exception("Modelo no disponible temporalmente.")
-            msg.contains("unable to resolve") || msg.contains("failed to connect")
-                    || msg.contains("network") || msg.contains("socket") ->
-                Exception("Sin conexión a internet. Verifica tu red.")
-            msg.contains("api_key") || msg.contains("invalid") || msg.contains("401") ->
-                Exception("Error de autenticación con el servicio.")
-            else ->
-                Exception("No se pudo consultar el servicio. ${e?.message ?: ""}")
+    // ── REST call with Google Search grounding ─────────────────────────────────
+
+    private suspend fun callGeminiRest(model: String, prompt: String): String =
+        withContext(Dispatchers.IO) {
+            val url = URL("$BASE_URL/$model:generateContent?key=$API_KEY")
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "POST"
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.doOutput = true
+            connection.connectTimeout = 30_000
+            connection.readTimeout   = 60_000
+
+            val body = buildRequestBody(prompt)
+            OutputStreamWriter(connection.outputStream).use { it.write(body) }
+
+            val responseCode = connection.responseCode
+            val raw = if (responseCode == 200) {
+                connection.inputStream.bufferedReader().readText()
+            } else {
+                val err = connection.errorStream?.bufferedReader()?.readText() ?: "sin detalle"
+                throw Exception("HTTP $responseCode: $err")
+            }
+
+            // Log token usage
+            val json = Json.parseToJsonElement(raw).jsonObject
+            val usage = json["usageMetadata"]?.jsonObject
+            Log.d(TAG, "Tokens — prompt: ${usage?.get("promptTokenCount")?.jsonPrimitive?.intOrNull}" +
+                    " | respuesta: ${usage?.get("candidatesTokenCount")?.jsonPrimitive?.intOrNull}" +
+                    " | total: ${usage?.get("totalTokenCount")?.jsonPrimitive?.intOrNull}")
+
+            // Extract text from candidates[0].content.parts[0].text
+            json["candidates"]
+                ?.jsonArray?.getOrNull(0)
+                ?.jsonObject?.get("content")
+                ?.jsonObject?.get("parts")
+                ?.jsonArray?.getOrNull(0)
+                ?.jsonObject?.get("text")
+                ?.jsonPrimitive?.content
+                ?: throw Exception("No se encontró texto en la respuesta del modelo")
         }
+
+    // ── Request body ───────────────────────────────────────────────────────────
+
+    private fun buildRequestBody(prompt: String): String {
+        val escaped = prompt
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+            .replace("\t", "\\t")
+
+        return """
+            {
+              "contents": [{"parts": [{"text": "$escaped"}]}],
+              "tools": [{"googleSearch": {}}],
+              "generationConfig": {
+                "temperature": 0.3,
+                "topK": 40,
+                "topP": 0.95,
+                "maxOutputTokens": 1024
+              },
+              "safetySettings": [
+                {"category": "HARM_CATEGORY_HARASSMENT",  "threshold": "BLOCK_ONLY_HIGH"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"}
+              ]
+            }
+        """.trimIndent()
     }
 
-    // ── Prompt (generated dynamically from the dictionaries) ──────────────────
+    // ── Prompt ─────────────────────────────────────────────────────────────────
 
     private fun buildPrompt(today: LocalDate): String {
         val dateStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
 
-        // Leagues: key → display name (auto-updated when dict changes)
         val leagueSection = TOURNAMENT_DICTIONARY.entries.joinToString(" | ") { (k, v) -> "$k=$v" }
-
-        // Teams as CSV (auto-updated when dict changes)
         val teams = TEAM_DICTIONARY.keys.joinToString(",")
 
         return """
@@ -139,25 +148,20 @@ class FootballAgentService {
         """.trimIndent()
     }
 
-    // ── Parse + match against dictionaries ────────────────────────────────────
+    // ── Parse ──────────────────────────────────────────────────────────────────
 
     private fun parseMatches(text: String): List<Game>? {
         return try {
             Log.d(TAG, "parseMatches RAW (primeros 800 chars): ${text.take(800)}")
 
-            val clean = text.trim()
-                .let { raw ->
-                    // Strip optional leading ```json or ``` fence
-                    val stripped = if (raw.startsWith("```")) {
-                        val firstNewline = raw.indexOf('\n')
-                        if (firstNewline != -1) raw.substring(firstNewline + 1) else raw
-                    } else raw
-                    // Strip trailing ```
-                    if (stripped.trimEnd().endsWith("```"))
-                        stripped.trimEnd().dropLast(3).trimEnd()
-                    else stripped
-                }
-                .trim()
+            val clean = text.trim().let { raw ->
+                val stripped = if (raw.startsWith("```")) {
+                    val nl = raw.indexOf('\n')
+                    if (nl != -1) raw.substring(nl + 1) else raw
+                } else raw
+                if (stripped.trimEnd().endsWith("```")) stripped.trimEnd().dropLast(3).trimEnd()
+                else stripped
+            }.trim()
 
             Log.d(TAG, "parseMatches CLEAN (primeros 800 chars): ${clean.take(800)}")
 
@@ -170,7 +174,7 @@ class FootballAgentService {
 
             val array = root["matches"]?.jsonArray
             if (array == null) {
-                Log.e(TAG, "Campo 'matches' no encontrado. Keys presentes: ${root.keys}")
+                Log.e(TAG, "Campo 'matches' no encontrado. Keys: ${root.keys}")
                 return emptyList()
             }
             Log.d(TAG, "Número de elementos en 'matches': ${array.size}")
@@ -181,7 +185,6 @@ class FootballAgentService {
                     val homePos  = obj["homePosition"]?.jsonPrimitive?.intOrNull
                     val visitPos = obj["visitingPosition"]?.jsonPrimitive?.intOrNull
                     val size     = obj["leagueSize"]?.jsonPrimitive?.intOrNull ?: 20
-
                     val rawLeague = obj["league"]?.jsonPrimitive?.content
                     val rawHome   = obj["homeTeam"]?.jsonPrimitive?.content
                     val rawVisit  = obj["visitingTeam"]?.jsonPrimitive?.content
@@ -189,12 +192,12 @@ class FootballAgentService {
 
                     Log.d(TAG, "Item: league=$rawLeague home=$rawHome($homePos) visit=$rawVisit($visitPos) date=$rawDate size=$size")
 
-                    if (homePos == null)  { Log.w(TAG, "homePosition nulo, skip"); return@mapNotNull null }
+                    if (homePos  == null) { Log.w(TAG, "homePosition nulo, skip");    return@mapNotNull null }
                     if (visitPos == null) { Log.w(TAG, "visitingPosition nulo, skip"); return@mapNotNull null }
-                    if (rawLeague == null){ Log.w(TAG, "league nulo, skip"); return@mapNotNull null }
-                    if (rawHome == null)  { Log.w(TAG, "homeTeam nulo, skip"); return@mapNotNull null }
-                    if (rawVisit == null) { Log.w(TAG, "visitingTeam nulo, skip"); return@mapNotNull null }
-                    if (rawDate == null)  { Log.w(TAG, "dateTimeIso nulo, skip"); return@mapNotNull null }
+                    if (rawLeague == null){ Log.w(TAG, "league nulo, skip");           return@mapNotNull null }
+                    if (rawHome  == null) { Log.w(TAG, "homeTeam nulo, skip");         return@mapNotNull null }
+                    if (rawVisit == null) { Log.w(TAG, "visitingTeam nulo, skip");     return@mapNotNull null }
+                    if (rawDate  == null) { Log.w(TAG, "dateTimeIso nulo, skip");      return@mapNotNull null }
 
                     val leagueKey = KeyMatcher.match(rawLeague, validLeagueKeys)
                     val homeKey   = KeyMatcher.match(rawHome,   validTeamKeys)
@@ -219,6 +222,25 @@ class FootballAgentService {
         } catch (e: Exception) {
             Log.e(TAG, "Excepción general en parseMatches: ${e.message}")
             null
+        }
+    }
+
+    // ── Error classification ───────────────────────────────────────────────────
+
+    private fun classifyError(e: Exception?): Exception {
+        val msg = e?.message?.lowercase() ?: ""
+        return when {
+            msg.contains("quota") || msg.contains("429") ->
+                Exception("Límite de consultas alcanzado. Intenta en unos minutos.")
+            msg.contains("not_found") || msg.contains("404") ->
+                Exception("Modelo no disponible temporalmente.")
+            msg.contains("unable to resolve") || msg.contains("failed to connect")
+                    || msg.contains("network") || msg.contains("socket") ->
+                Exception("Sin conexión a internet. Verifica tu red.")
+            msg.contains("api_key") || msg.contains("invalid") || msg.contains("401") ->
+                Exception("Error de autenticación con el servicio.")
+            else ->
+                Exception("No se pudo consultar el servicio. ${e?.message ?: ""}")
         }
     }
 }

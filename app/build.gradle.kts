@@ -84,7 +84,6 @@ dependencies {
     implementation(libs.firebase.perf)
     implementation(libs.androidx.lifecycle.process)
 
-    implementation(libs.generativeai)
     implementation(libs.kotlinx.serialization.json)
 
     testImplementation(libs.junit)
