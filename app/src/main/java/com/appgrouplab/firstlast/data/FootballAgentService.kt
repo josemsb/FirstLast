@@ -53,6 +53,12 @@ class FootballAgentService {
         )
     )
 
+    // Precomputed key sets for matching (built once at service creation)
+    private val validLeagueKeys = TOURNAMENT_DICTIONARY.keys.toSet()
+    private val validTeamKeys   = TEAM_DICTIONARY.keys.toSet()
+
+    // ── Fetch ──────────────────────────────────────────────────────────────────
+
     suspend fun fetchTodayMatches(today: LocalDate): List<Game> {
         val prompt = buildPrompt(today)
         for (model in models) {
@@ -68,41 +74,54 @@ class FootballAgentService {
         return emptyList()
     }
 
+    // ── Prompt (generated dynamically from the dictionaries) ──────────────────
+
     private fun buildPrompt(today: LocalDate): String {
-        val dateStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val dateStr   = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
         val dayOfWeek = today.dayOfWeek.getDisplayName(TextStyle.FULL, Locale("es", "ES"))
+
+        // League section: "key" → Display name  (auto-updated when dict changes)
+        val leagueSection = TOURNAMENT_DICTIONARY.entries.joinToString("\n") { (key, name) ->
+            "  \"$key\" → $name"
+        }
+
+        // Team section: all valid team keys listed in blocks of 15 (auto-updated when dict changes)
+        val teamSection = TEAM_DICTIONARY.keys
+            .chunked(15)
+            .joinToString("\n") { chunk -> "  " + chunk.joinToString(", ") }
+
         return """
             Eres un experto en fútbol con conocimiento actualizado de las tablas de posiciones y los fixtures de las principales ligas del mundo.
 
-            Necesito los partidos de HOY: $dayOfWeek $dateStr
-            Ligas a consultar: La Liga Española, Premier League, Ligue 1, Serie A, Bundesliga, Liga Peruana, Liga Argentina y Brasileirão.
+            Necesito los partidos de HOY: $dayOfWeek $dateStr.
 
-            REGLA OBLIGATORIA: Solo incluye partidos donde se cumpla esta condición:
-            - Un equipo ocupa una posición del TOP 5 en la tabla (posición 1 al 5) Y
-            - El otro equipo ocupa una de las ÚLTIMAS 5 posiciones de la tabla (zona de descenso)
+            LIGAS A CONSULTAR (usa EXACTAMENTE el key indicado en el campo "league"):
+$leagueSection
 
-            Devuelve ÚNICAMENTE un JSON válido sin markdown, sin explicaciones adicionales:
+            REGLA OBLIGATORIA: Solo incluye partidos donde:
+            - Un equipo está en el TOP 5 de la tabla (posición 1–5) Y
+            - El otro está en las ÚLTIMAS 5 posiciones (zona de descenso)
+
+            EQUIPOS VÁLIDOS para "homeTeam" y "visitingTeam" (usa EXACTAMENTE uno de estos keys):
+$teamSection
+
+            Si el equipo no aparece en la lista de claves, usa el nombre en snake_case más aproximado de la lista.
+
+            Devuelve ÚNICAMENTE un JSON válido, sin markdown ni explicaciones:
             {"matches":[{"league":"liga_espanola","homeTeam":"real_madrid","homePosition":1,"visitingTeam":"valencia","visitingPosition":18,"dateTimeIso":"${dateStr}T20:00:00","leagueSize":20}]}
 
-            Valores exactos para el campo "league":
-            liga_espanola, premier_league, ligue_1, serie_a, bundesliga, liga_peruana, liga_argentina, liga_brasilera
+            Reglas del JSON:
+            - "league"       → key exacto de la lista de ligas
+            - "homeTeam"     → key exacto de la lista de equipos
+            - "visitingTeam" → key exacto de la lista de equipos
+            - "dateTimeIso"  → formato "YYYY-MM-DDTHH:MM:SS" en hora local del país
+            - "leagueSize"   → número total de equipos en esa liga esta temporada
 
-            Claves exactas para "homeTeam" y "visitingTeam":
-            España (20 equipos): real_madrid, barcelona, atletico_madrid, girona, athletic_club, real_sociedad, betis, villarreal, osasuna, sevilla, rayo_vallecano, celta_de_vigo, getafe, alaves, rcd_mallorca, rcd_espanol, levante, real_oviedo, valencia, elche
-            Inglaterra (20 equipos): arsenal, manchester_city, liverpool, chelsea, aston_villa, tottenham_hotspur, newcastle_united, manchester_united, west_ham_united, brighton, wolves, crystal_palace, fulham, brentford, everton, bournemouth, nottingham_forest, burnley, leeds_united, sunderland
-            Francia (18 equipos): paris_saint_germain, marseille, monaco, nice, lens, rennes, lille, strasbourg, reims, brest, toulouse, nantes, lyon, le_havre, angers, auxerre, paris_fc, stade_brestois
-            Italia (20 equipos): inter, napoli, atalanta, juventus, lazio, fiorentina, bologna, roma, torino, milano, udinese, como, genoa, lecce, cagliari, parma, empoli, hellas_verona, monza, sassuolo
-            Alemania (18 equipos): bayer_leverkusen, bayern_munich, rb_leipzig, eintracht_frankfurt, borussia_dortmund, stuttgart, sc_freiburg, wolfsburg, mainz_05, werder_bremen, tsg_hoffenheim, borussia_monchengladbach, union_berlin, fc_augsburg, heidenheim, st_pauli, fc_cologne, hamburg_sv
-            Perú (19 equipos): alianza_lima, universitario, sporting_cristal, melgar, cusco_fc, cienciano, sport_huancayo, deportivo_garcilaso, comerciantes_unidos, los_chankas, alianza_atletico, atletico_grau, adt, utc, alianza_universidad, binacional, sport_boys, ayacucho_fc
-            Argentina (28 equipos): river_plate, boca_juniors, racing_club, independiente_avellaneda, san_lorenzo, huracan, rosario_central, newells_old_boys, estudiantes, gimnasia, argentinos_juniors, velez_sarsfield, lanus, banfield, tigre, defensa_y_justicia, godoy_cruz, belgrano, talleres, atletico_tucuman, barracas_central, deportivo_riestra, sarmiento_junin, platense
-            Brasil (20 equipos): flamengo, palmeiras, atletico_mineiro, fluminense, botafogo, internacional, gremio, sao_paulo, corinthians, atletico_paranaense, cruzeiro, bahia, fortaleza, bragantino, vasco_da_gama, cuiaba, santos, goias, coritiba, juventude
-
-            El campo "dateTimeIso" debe estar en formato "YYYY-MM-DDTHH:MM:SS" en la hora local del país donde se juega.
-            El campo "leagueSize" debe ser el número total de equipos en esa liga esta temporada.
-
-            Si no hay partidos que cumplan la condición hoy, devuelve exactamente: {"matches":[]}
+            Si no hay partidos que cumplan la condición hoy: {"matches":[]}
         """.trimIndent()
     }
+
+    // ── Parse + match against dictionaries ────────────────────────────────────
 
     private fun parseMatches(text: String): List<Game>? {
         return try {
@@ -111,22 +130,36 @@ class FootballAgentService {
                 .removePrefix("```")
                 .removeSuffix("```")
                 .trim()
-            val root = Json.parseToJsonElement(clean).jsonObject
+
+            val root  = Json.parseToJsonElement(clean).jsonObject
             val array = root["matches"]?.jsonArray ?: return emptyList()
+
             array.mapNotNull { el ->
                 try {
-                    val obj = el.jsonObject
-                    val homePos = obj["homePosition"]?.jsonPrimitive?.intOrNull ?: return@mapNotNull null
+                    val obj      = el.jsonObject
+                    val homePos  = obj["homePosition"]?.jsonPrimitive?.intOrNull  ?: return@mapNotNull null
                     val visitPos = obj["visitingPosition"]?.jsonPrimitive?.intOrNull ?: return@mapNotNull null
-                    val size = obj["leagueSize"]?.jsonPrimitive?.intOrNull ?: 20
+                    val size     = obj["leagueSize"]?.jsonPrimitive?.intOrNull ?: 20
+
+                    val rawLeague = obj["league"]?.jsonPrimitive?.content       ?: return@mapNotNull null
+                    val rawHome   = obj["homeTeam"]?.jsonPrimitive?.content      ?: return@mapNotNull null
+                    val rawVisit  = obj["visitingTeam"]?.jsonPrimitive?.content  ?: return@mapNotNull null
+                    val rawDate   = obj["dateTimeIso"]?.jsonPrimitive?.content   ?: return@mapNotNull null
+
+                    // Match against dictionaries — fallback to original if unknown
+                    // (unknown team → imageResId = 0 → generic icon in UI)
+                    val leagueKey = KeyMatcher.match(rawLeague, validLeagueKeys)
+                    val homeKey   = KeyMatcher.match(rawHome,   validTeamKeys)
+                    val visitKey  = KeyMatcher.match(rawVisit,  validTeamKeys)
+
                     Game(
-                        dateTimeIso = obj["dateTimeIso"]?.jsonPrimitive?.content ?: return@mapNotNull null,
-                        homePosition = homePos,
-                        homeTeam = obj["homeTeam"]?.jsonPrimitive?.content ?: return@mapNotNull null,
-                        season = obj["league"]?.jsonPrimitive?.content ?: return@mapNotNull null,
+                        dateTimeIso    = rawDate,
+                        homePosition   = homePos,
+                        homeTeam       = homeKey,
+                        season         = leagueKey,
                         visitingPosition = visitPos,
-                        visitingTeam = obj["visitingTeam"]?.jsonPrimitive?.content ?: return@mapNotNull null,
-                        leagueSize = size
+                        visitingTeam   = visitKey,
+                        leagueSize     = size
                     )
                 } catch (_: Exception) { null }
             }

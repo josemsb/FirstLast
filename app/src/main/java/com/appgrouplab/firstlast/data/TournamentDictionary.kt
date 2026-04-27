@@ -19,5 +19,5 @@ val TOURNAMENT_DICTIONARY: Map<String, String> = mapOf(
     "liga_belga" to "Jupiler Pro League",
     "liga_portuguesa" to "Primeira Liga",
     "liga_holandesa" to "Eredivisie",
-    "liga_turca" to "Süper Lig",
+    "liga_turca" to "Superliga de Turquía",
 )
