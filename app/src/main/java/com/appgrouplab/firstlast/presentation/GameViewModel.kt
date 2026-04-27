@@ -1,0 +1,64 @@
+package com.appgrouplab.firstlast.presentation
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.appgrouplab.firstlast.data.GameState
+import com.appgrouplab.firstlast.data.GeminiGameRepository
+import com.appgrouplab.firstlast.model.Game
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import java.time.LocalDateTime
+
+class GameViewModel(
+    private val repository: GeminiGameRepository,
+    private val dispatcher: CoroutineDispatcher = Dispatchers.IO
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow<GameUiState>(GameUiState.Loading)
+    val uiState: StateFlow<GameUiState> = _uiState.asStateFlow()
+
+    init {
+        loadTodayMatches()
+    }
+
+    fun retry() = loadTodayMatches()
+
+    private fun loadTodayMatches() {
+        viewModelScope.launch(dispatcher) {
+            repository.getTodayMatches().collect { state ->
+                _uiState.value = when (state) {
+                    is GameState.Loading -> GameUiState.Loading
+                    is GameState.Success -> GameUiState.Success(sortAndFilter(state.games))
+                    is GameState.Error -> GameUiState.Error(state.message)
+                }
+            }
+        }
+    }
+
+    private fun sortAndFilter(games: List<Game>): List<Game> {
+        val now = LocalDateTime.now()
+
+        // Filter: one team in top 5, other in the last 5 of the table
+        val filtered = games.filter { game ->
+            val h = game.homePosition
+            val v = game.visitingPosition
+            val bottomThreshold = game.leagueSize - 4
+            ((h in 1..5) && (v >= bottomThreshold)) ||
+            ((v in 1..5) && (h >= bottomThreshold))
+        }
+
+        // Partition: upcoming matches (dateTime > now) vs past (dateTime <= now)
+        val (upcoming, past) = filtered.partition { game ->
+            try { LocalDateTime.parse(game.dateTimeIso).isAfter(now) }
+            catch (_: Exception) { false }
+        }
+
+        // Upcoming: soonest first; Past: most recently started first
+        return upcoming.sortedBy { it.dateTimeIso } +
+               past.sortedByDescending { it.dateTimeIso }
+    }
+}

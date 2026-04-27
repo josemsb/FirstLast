@@ -1,0 +1,28 @@
+# Local properties (API keys, SDK paths - NEVER commit)
+local.properties
+
+# Build outputs
+build/
+app/build/
+*/build/
+
+# Gradle
+.gradle/
+gradle/wrapper/gradle-wrapper.jar
+**/.gradle/
+
+# Android Studio
+.idea/
+*.iml
+*.iws
+*.ipr
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Keystore & signing
+*.jks
+*.keystore
+
+# Proguard
+out/
