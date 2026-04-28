@@ -8,6 +8,7 @@ import com.appgrouplab.firstlast.model.TeamEntry
 import com.google.genai.Client
 import com.google.genai.types.GenerateContentConfig
 import com.google.genai.types.GoogleSearch
+import com.google.genai.types.ThinkingConfig
 import com.google.genai.types.Tool
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -42,7 +43,8 @@ class FootballAgentService {
     private val config = GenerateContentConfig.builder()
         .tools(listOf(searchTool))
         .temperature(0.3f)
-        .maxOutputTokens(1024)
+        .maxOutputTokens(2048)
+        .thinkingConfig(ThinkingConfig.builder().thinkingBudget(0).build())
         .build()
 
     // ── Fetch ──────────────────────────────────────────────────────────────────
@@ -59,8 +61,10 @@ class FootballAgentService {
 
                 val text = withContext(Dispatchers.IO) {
                     val response = client.models.generateContent(model, prompt, config)
-                    val usage = response.usageMetadata()
-                    Log.d(TAG, "Tokens — prompt: ${usage?.map { it.promptTokenCount() }} | total: ${usage?.map { it.totalTokenCount() }}")
+                    val usage = response.usageMetadata().orElse(null)
+                    val promptTokens = usage?.promptTokenCount()?.orElse(null)
+                    val totalTokens  = usage?.totalTokenCount()?.orElse(null)
+                    Log.d(TAG, "Tokens — prompt: $promptTokens | total: $totalTokens")
                     val rawText = response.text() ?: throw Exception("Respuesta sin texto del modelo")
                     Log.d(TAG, "──── RESPONSE (${rawText.length} chars) ────")
                     rawText.chunked(3000).forEachIndexed { i, chunk ->
