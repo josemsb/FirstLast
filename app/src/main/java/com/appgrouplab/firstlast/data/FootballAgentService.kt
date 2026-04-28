@@ -61,12 +61,13 @@ class FootballAgentService {
                     val response = client.models.generateContent(model, prompt, config)
                     val usage = response.usageMetadata()
                     Log.d(TAG, "Tokens — prompt: ${usage?.map { it.promptTokenCount() }} | total: ${usage?.map { it.totalTokenCount() }}")
-                    response.text() ?: throw Exception("Respuesta sin texto del modelo")
-                }
-
-                Log.d(TAG, "Respuesta Gemini longitud: ${text.length} chars")
-                text.chunked(3000).forEachIndexed { i, chunk ->
-                    Log.d(TAG, "Respuesta Gemini [parte ${i + 1}]: $chunk")
+                    val rawText = response.text() ?: throw Exception("Respuesta sin texto del modelo")
+                    Log.d(TAG, "──── RESPONSE (${rawText.length} chars) ────")
+                    rawText.chunked(3000).forEachIndexed { i, chunk ->
+                        Log.d(TAG, "[parte ${i + 1}]: $chunk")
+                    }
+                    Log.d(TAG, "────────────────────────────────────────────")
+                    rawText
                 }
 
                 val games = parseMatches(text)
