@@ -99,17 +99,17 @@ class FootballAgentService {
 
         return """
             Actúa como especialista en extracción de datos deportivos. Fecha: $dateStr.
-            Ligas: $leagueSection.
-            Filtro: Solo partidos donde un equipo sea TOP 5 y el rival sea ÚLTIMOS 5 de su tabla o grupo.
+            Busca en internet TODOS los partidos de hoy en estas ligas: $leagueSection.
+            Para cada partido incluye la posición actual de cada equipo en la tabla de su liga.
 
             Reglas Técnicas:
             1. Key: Nombre geográfico completo en snake_case (ej: manchester_city, atletico_madrid).
             2. Name: Nombre público corto para UI (ej: Man City, Atleti).
-            3. League: Usa la key exacta de la lista: $leagueSection.
+            3. League key: usa exactamente uno de estos valores: $leagueSection.
 
-            Salida: JSON puro, sin markdown.
+            Salida: JSON puro, sin markdown, con TODOS los partidos de hoy y sus posiciones.
             Formato: {"matches":[{"league":{"name":"Liga","key":"KEY"},"home":{"name":"Público","key":"KEY","pos":1},"away":{"name":"Público","key":"KEY","pos":18},"dateTimeIso":"${dateStr}T00:00:00","leagueSize":20}]}
-            Si no hay partidos: {"matches":[]}
+            Si no hay partidos hoy en ninguna liga: {"matches":[]}
         """.trimIndent()
     }
 
