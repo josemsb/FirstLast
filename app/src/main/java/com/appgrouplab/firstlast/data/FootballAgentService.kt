@@ -65,8 +65,24 @@ class FootballAgentService {
                     val promptTokens = usage?.promptTokenCount()?.orElse(null)
                     val totalTokens  = usage?.totalTokenCount()?.orElse(null)
                     Log.d(TAG, "Tokens — prompt: $promptTokens | total: $totalTokens")
+
+                    // Log candidates completo para ver estructura real
+                    val candidates = response.candidates().orElse(null)
+                    Log.d(TAG, "Candidates count: ${candidates?.size}")
+                    candidates?.forEachIndexed { i, candidate ->
+                        Log.d(TAG, "Candidate[$i] finishReason: ${candidate.finishReason().orElse(null)}")
+                        val parts = candidate.content().orElse(null)?.parts().orElse(null)
+                        Log.d(TAG, "Candidate[$i] parts count: ${parts?.size}")
+                        parts?.forEachIndexed { j, part ->
+                            val partText = part.text().orElse(null)
+                            Log.d(TAG, "Candidate[$i] part[$j] text (500): ${partText?.take(500)}")
+                        }
+                        val grounding = candidate.groundingMetadata().orElse(null)
+                        Log.d(TAG, "Candidate[$i] groundingMetadata: $grounding")
+                    }
+
                     val rawText = response.text() ?: throw Exception("Respuesta sin texto del modelo")
-                    Log.d(TAG, "──── RESPONSE (${rawText.length} chars) ────")
+                    Log.d(TAG, "──── RESPONSE.text() (${rawText.length} chars) ────")
                     rawText.chunked(3000).forEachIndexed { i, chunk ->
                         Log.d(TAG, "[parte ${i + 1}]: $chunk")
                     }
