@@ -67,7 +67,10 @@ class FootballAgentService {
                     Log.d(TAG, "Tokens — prompt: $promptTokens | total: $totalTokens")
 
                     // Log respuesta completa del SDK para diagnóstico
-                    Log.d(TAG, "Response toString (1000): ${response.toString().take(1000)}")
+                    val fullResponse = response.toString()
+                    fullResponse.chunked(3000).forEachIndexed { i, chunk ->
+                        Log.d(TAG, "Response toString [parte ${i+1}]: $chunk")
+                    }
 
                     val rawText = response.text() ?: throw Exception("Respuesta sin texto del modelo")
                     Log.d(TAG, "──── RESPONSE.text() (${rawText.length} chars) ────")
@@ -99,7 +102,11 @@ class FootballAgentService {
 
     private fun buildPrompt(today: LocalDate): String {
         val dateStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val leagueSection = TOURNAMENT_DICTIONARY.keys.joinToString(",")
+
+        // key=NombreReal para que el modelo sepa qué buscar en Google
+        val leagueSection = TOURNAMENT_DICTIONARY.entries
+            .joinToString(", ") { (k, v) -> "$k=$v" }
+        val leagueKeys = TOURNAMENT_DICTIONARY.keys.joinToString(", ")
 
         return """
             Actúa como especialista en extracción de datos deportivos. Fecha: $dateStr.
@@ -107,9 +114,9 @@ class FootballAgentService {
             Para cada partido incluye la posición actual de cada equipo en la tabla de su liga.
 
             Reglas Técnicas:
-            1. Key: Nombre geográfico completo en snake_case (ej: manchester_city, atletico_madrid).
-            2. Name: Nombre público corto para UI (ej: Man City, Atleti).
-            3. League key: usa exactamente uno de estos valores: $leagueSection.
+            1. Key equipo: nombre geográfico completo en snake_case (ej: manchester_city, atletico_madrid).
+            2. Name equipo: nombre público corto para UI (ej: Man City, Atleti).
+            3. League key: usa exactamente uno de estos valores: $leagueKeys.
 
             Salida: JSON puro, sin markdown, con TODOS los partidos de hoy y sus posiciones.
             Formato: {"matches":[{"league":{"name":"Liga","key":"KEY"},"home":{"name":"Público","key":"KEY","pos":1},"away":{"name":"Público","key":"KEY","pos":18},"dateTimeIso":"${dateStr}T00:00:00","leagueSize":20}]}
