@@ -54,12 +54,12 @@ class GameViewModel(
 
         // Filter: one team in top 5, other in the last 5 of the table
         val filtered = games.filter { game ->
-            val h = game.homePosition
-            val v = game.visitingPosition
+            val h = game.home.pos
+            val v = game.away.pos
             val bottomThreshold = game.leagueSize - 4
             val passes = ((h in 1..5) && (v >= bottomThreshold)) ||
                          ((v in 1..5) && (h >= bottomThreshold))
-            if (!passes) Log.d(TAG, "  Descartado: ${game.homeTeam}($h) vs ${game.visitingTeam}($v) liga=${game.season} size=${game.leagueSize} umbral=$bottomThreshold")
+            if (!passes) Log.d(TAG, "  Descartado: ${game.home.name}($h) vs ${game.away.name}($v) liga=${game.league.key} size=${game.leagueSize} umbral=$bottomThreshold")
             passes
         }
 

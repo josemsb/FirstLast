@@ -4,11 +4,22 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class Game(
+    val league: League = League(),
+    val home: TeamEntry = TeamEntry(),
+    val away: TeamEntry = TeamEntry(),
     val dateTimeIso: String = "",
-    val homePosition: Int = 0,
-    val homeTeam: String = "",
-    val season: String = "",
-    val visitingPosition: Int = 0,
-    val visitingTeam: String = "",
     val leagueSize: Int = 20
+)
+
+@Serializable
+data class League(
+    val name: String = "",
+    val key: String = ""
+)
+
+@Serializable
+data class TeamEntry(
+    val name: String = "",
+    val key: String = "",
+    val pos: Int = 0
 )

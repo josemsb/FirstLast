@@ -20,7 +20,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.appgrouplab.firstlast.data.TOURNAMENT_DICTIONARY
 import com.appgrouplab.firstlast.model.Game
 import com.appgrouplab.firstlast.ui.theme.GreenFistLast
 import java.time.LocalDateTime
@@ -30,11 +29,19 @@ import java.util.Locale
 @Composable
 fun GameCard(game: Game) {
     val context = LocalContext.current
+
+    // Logo de liga: busca drawable por key (ej: "premier_league")
     val leagueResId = context.resources.getIdentifier(
-        game.season.lowercase().replace(" ", "_"),
-        "drawable",
-        context.packageName
+        game.league.key, "drawable", context.packageName
     )
+    // Logos de equipos: busca drawable por key (ej: "manchester_city")
+    val homeResId = context.resources.getIdentifier(
+        game.home.key, "drawable", context.packageName
+    )
+    val awayResId = context.resources.getIdentifier(
+        game.away.key, "drawable", context.packageName
+    )
+
     val formattedDate = try {
         LocalDateTime.parse(game.dateTimeIso)
             .format(DateTimeFormatter.ofPattern("EEEE, dd MMM HH:mm", Locale("es", "ES")))
@@ -58,18 +65,16 @@ fun GameCard(game: Game) {
                 color = GreenFistLast,
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
-                TOURNAMENT_DICTIONARY[game.season]?.let {
-                    Text(
-                        text = it,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                Text(
+                    text = game.league.name,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Spacer(modifier = Modifier.size(8.dp))
                 if (leagueResId != 0) {
                     Image(
                         painter = painterResource(id = leagueResId),
-                        contentDescription = game.season,
+                        contentDescription = game.league.name,
                         modifier = Modifier.size(20.dp),
                         contentScale = ContentScale.Crop
                     )
@@ -83,11 +88,9 @@ fun GameCard(game: Game) {
         ) {
             TeamInfoLocal(
                 modifier = Modifier.weight(1f),
-                teamName = game.homeTeam,
-                position = game.homePosition,
-                imageResId = context.resources.getIdentifier(
-                    game.homeTeam, "drawable", context.packageName
-                )
+                teamName = game.home.name,
+                position = game.home.pos,
+                imageResId = homeResId
             )
             Text(
                 text = "vs",
@@ -98,11 +101,9 @@ fun GameCard(game: Game) {
             )
             TeamInfoVisitante(
                 modifier = Modifier.weight(1f),
-                teamName = game.visitingTeam,
-                position = game.visitingPosition,
-                imageResId = context.resources.getIdentifier(
-                    game.visitingTeam, "drawable", context.packageName
-                )
+                teamName = game.away.name,
+                position = game.away.pos,
+                imageResId = awayResId
             )
         }
     }

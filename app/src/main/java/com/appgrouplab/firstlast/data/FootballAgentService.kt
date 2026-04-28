@@ -88,18 +88,21 @@ class FootballAgentService {
 
     private fun buildPrompt(today: LocalDate): String {
         val dateStr = today.format(DateTimeFormatter.ISO_LOCAL_DATE)
-        val leagueSection = TOURNAMENT_DICTIONARY.entries.joinToString(" | ") { (k, v) -> "$k=$v" }
-        val teams = TEAM_DICTIONARY.keys.joinToString(",")
+        val leagueSection = TOURNAMENT_DICTIONARY.keys.joinToString(",")
 
         return """
-            Busca en internet los partidos de fútbol programados para HOY $dateStr en estas ligas.
-            LIGAS (usa el key exacto en "league"): $leagueSection
-            Consulta la tabla de posiciones actual de cada liga y aplica esta REGLA: incluir SOLO partidos donde un equipo está en posición 1-5 Y el rival en las últimas 5 posiciones de su liga.
-            EQUIPOS válidos (usa key exacto en homeTeam/visitingTeam): $teams
-            Si el equipo no está en la lista, usa el snake_case más similar.
-            Devuelve ÚNICAMENTE JSON sin markdown:
-            {"matches":[{"league":"KEY","homeTeam":"KEY","homePosition":1,"visitingTeam":"KEY","visitingPosition":18,"dateTimeIso":"${dateStr}T20:00:00","leagueSize":20}]}
-            Sin partidos que cumplan la regla: {"matches":[]}
+            Actúa como especialista en extracción de datos deportivos. Fecha: $dateStr.
+            Ligas: $leagueSection.
+            Filtro: Solo partidos donde un equipo sea TOP 5 y el rival sea ÚLTIMOS 5 de su tabla o grupo.
+
+            Reglas Técnicas:
+            1. Key: Nombre geográfico completo en snake_case (ej: manchester_city, atletico_madrid).
+            2. Name: Nombre público corto para UI (ej: Man City, Atleti).
+            3. League: Usa la key exacta de la lista: $leagueSection.
+
+            Salida: JSON puro, sin markdown.
+            Formato: {"matches":[{"league":{"name":"Liga","key":"KEY"},"home":{"name":"Público","key":"KEY","pos":1},"away":{"name":"Público","key":"KEY","pos":18},"dateTimeIso":"${dateStr}T00:00:00","leagueSize":20}]}
+            Si no hay partidos: {"matches":[]}
         """.trimIndent()
     }
 
@@ -136,38 +139,53 @@ class FootballAgentService {
 
             array.mapNotNull { el ->
                 try {
-                    val obj      = el.jsonObject
-                    val homePos  = obj["homePosition"]?.jsonPrimitive?.intOrNull
-                    val visitPos = obj["visitingPosition"]?.jsonPrimitive?.intOrNull
-                    val size     = obj["leagueSize"]?.jsonPrimitive?.intOrNull ?: 20
-                    val rawLeague = obj["league"]?.jsonPrimitive?.content
-                    val rawHome   = obj["homeTeam"]?.jsonPrimitive?.content
-                    val rawVisit  = obj["visitingTeam"]?.jsonPrimitive?.content
-                    val rawDate   = obj["dateTimeIso"]?.jsonPrimitive?.content
+                    val obj = el.jsonObject
 
-                    Log.d(TAG, "Item: league=$rawLeague home=$rawHome($homePos) visit=$rawVisit($visitPos) date=$rawDate size=$size")
+                    // league
+                    val leagueObj  = obj["league"]?.jsonObject
+                    val leagueName = leagueObj?.get("name")?.jsonPrimitive?.content
+                    val leagueKey  = leagueObj?.get("key")?.jsonPrimitive?.content
 
-                    if (homePos  == null) { Log.w(TAG, "homePosition nulo, skip");    return@mapNotNull null }
-                    if (visitPos == null) { Log.w(TAG, "visitingPosition nulo, skip"); return@mapNotNull null }
-                    if (rawLeague == null){ Log.w(TAG, "league nulo, skip");           return@mapNotNull null }
-                    if (rawHome  == null) { Log.w(TAG, "homeTeam nulo, skip");         return@mapNotNull null }
-                    if (rawVisit == null) { Log.w(TAG, "visitingTeam nulo, skip");     return@mapNotNull null }
-                    if (rawDate  == null) { Log.w(TAG, "dateTimeIso nulo, skip");      return@mapNotNull null }
+                    // home
+                    val homeObj  = obj["home"]?.jsonObject
+                    val homeName = homeObj?.get("name")?.jsonPrimitive?.content
+                    val homeKey  = homeObj?.get("key")?.jsonPrimitive?.content
+                    val homePos  = homeObj?.get("pos")?.jsonPrimitive?.intOrNull
 
-                    val leagueKey = KeyMatcher.match(rawLeague, validLeagueKeys)
-                    val homeKey   = KeyMatcher.match(rawHome,   validTeamKeys)
-                    val visitKey  = KeyMatcher.match(rawVisit,  validTeamKeys)
+                    // away
+                    val awayObj  = obj["away"]?.jsonObject
+                    val awayName = awayObj?.get("name")?.jsonPrimitive?.content
+                    val awayKey  = awayObj?.get("key")?.jsonPrimitive?.content
+                    val awayPos  = awayObj?.get("pos")?.jsonPrimitive?.intOrNull
 
-                    Log.d(TAG, "Keys resueltos: league=$leagueKey home=$homeKey visit=$visitKey")
+                    val rawDate = obj["dateTimeIso"]?.jsonPrimitive?.content
+                    val size    = obj["leagueSize"]?.jsonPrimitive?.intOrNull ?: 20
+
+                    Log.d(TAG, "Item: league=$leagueKey($leagueName) home=$homeKey($homeName,$homePos) away=$awayKey($awayName,$awayPos) date=$rawDate")
+
+                    if (leagueKey  == null) { Log.w(TAG, "league.key nulo, skip");  return@mapNotNull null }
+                    if (leagueName == null) { Log.w(TAG, "league.name nulo, skip"); return@mapNotNull null }
+                    if (homeKey    == null) { Log.w(TAG, "home.key nulo, skip");    return@mapNotNull null }
+                    if (homeName   == null) { Log.w(TAG, "home.name nulo, skip");   return@mapNotNull null }
+                    if (homePos    == null) { Log.w(TAG, "home.pos nulo, skip");    return@mapNotNull null }
+                    if (awayKey    == null) { Log.w(TAG, "away.key nulo, skip");    return@mapNotNull null }
+                    if (awayName   == null) { Log.w(TAG, "away.name nulo, skip");   return@mapNotNull null }
+                    if (awayPos    == null) { Log.w(TAG, "away.pos nulo, skip");    return@mapNotNull null }
+                    if (rawDate    == null) { Log.w(TAG, "dateTimeIso nulo, skip"); return@mapNotNull null }
+
+                    // Match keys against dictionaries for logo resolution
+                    val resolvedLeagueKey = KeyMatcher.match(leagueKey, validLeagueKeys)
+                    val resolvedHomeKey   = KeyMatcher.match(homeKey,   validTeamKeys)
+                    val resolvedAwayKey   = KeyMatcher.match(awayKey,   validTeamKeys)
+
+                    Log.d(TAG, "Keys resueltos: league=$resolvedLeagueKey home=$resolvedHomeKey away=$resolvedAwayKey")
 
                     Game(
-                        dateTimeIso      = rawDate,
-                        homePosition     = homePos,
-                        homeTeam         = homeKey,
-                        season           = leagueKey,
-                        visitingPosition = visitPos,
-                        visitingTeam     = visitKey,
-                        leagueSize       = size
+                        league      = League(name = leagueName, key = resolvedLeagueKey),
+                        home        = TeamEntry(name = homeName, key = resolvedHomeKey, pos = homePos),
+                        away        = TeamEntry(name = awayName, key = resolvedAwayKey, pos = awayPos),
+                        dateTimeIso = rawDate,
+                        leagueSize  = size
                     )
                 } catch (e: Exception) {
                     Log.e(TAG, "Excepción parseando item: ${e.message} — item=$el")
