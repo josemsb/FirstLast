@@ -3,6 +3,8 @@ package com.appgrouplab.firstlast.data
 import android.util.Log
 import com.appgrouplab.firstlast.BuildConfig
 import com.appgrouplab.firstlast.model.Game
+import com.appgrouplab.firstlast.model.League
+import com.appgrouplab.firstlast.model.TeamEntry
 import com.google.genai.Client
 import com.google.genai.types.GenerateContentConfig
 import com.google.genai.types.GoogleSearch
