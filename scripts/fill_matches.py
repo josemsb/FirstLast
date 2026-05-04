@@ -142,21 +142,19 @@ TOP 5 (primeros de la tabla): {top5}
 BOTTOM 5 (últimos de la tabla): {bottom5}
 
 Busca en sofascore.com o flashscore.com el fixture/calendario de {league_name}
-para el día {today}. Necesito un partido AÚN NO JUGADO (estado: scheduled/upcoming)
-donde un equipo del TOP 5 juegue contra un equipo del BOTTOM 5.
+para el día {today}. Necesito un partido donde un equipo del TOP 5
+juegue contra un equipo del BOTTOM 5 en esa fecha.
 
-REGLAS CRÍTICAS — LEE CADA UNA:
-1. La fuente DEBE mostrar el partido con fecha {today} en su fixture/calendario
-2. El partido NO debe haber sido jugado — estado scheduled, not started, upcoming
-3. Si el partido aparece como FT (full time) o ya terminó, devuelve null
-4. Si la fecha en la fuente es distinta de {today}, devuelve null
-5. Los equipos del resultado DEBEN estar exactamente en las listas de arriba
-6. Convierte el horario a UTC
-7. match_date debe ser la fecha EXACTA que figura en la fuente ({today})
+REGLAS CRÍTICAS:
+1. La fuente DEBE mostrar el partido con fecha {today} — no otro día
+2. Si la fecha en la fuente es distinta de {today}, devuelve null
+3. Los equipos del resultado DEBEN estar exactamente en las listas de arriba
+4. Convierte el horario a UTC
+5. match_date debe ser la fecha EXACTA que figura en la fuente ({today})
 
 Devuelve SOLO este JSON:
 {{"match": {{"home_name": "nombre exacto de la lista", "away_name": "nombre exacto de la lista", "time_utc": "HH:MM", "match_date": "{today}"}}}}
-o si no hay partido válido:
+o si no hay partido:
 {{"match": null}}
 """.strip()
 
@@ -170,10 +168,14 @@ def find_match_today(client, league_name: str, top5: list, bottom5: list,
         bottom5        = ", ".join(t["team_name"] for t in bottom5),
     )
     for attempt in range(2):
-        data = extract_json(call_gemini(client, prompt))
+        raw = call_gemini(client, prompt)
+        data = extract_json(raw)
         if data is not None:
-            return data.get("match")
-        print(f"  ⚠️  Intento {attempt + 1} fallido para match de {league_name}")
+            match = data.get("match")
+            if match is None:
+                print(f"  ℹ️  Gemini respondió: sin partido para {league_name}")
+            return match
+        print(f"  ⚠️  Intento {attempt + 1} — respuesta no parseable: {raw[:200]}")
     return None
 
 # ── Validación y resolución de keys ──────────────────────────────────────────
