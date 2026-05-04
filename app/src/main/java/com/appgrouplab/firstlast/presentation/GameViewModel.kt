@@ -33,6 +33,9 @@ class GameViewModel(
     private val _uiState = MutableStateFlow<GameUiState>(GameUiState.Loading)
     val uiState: StateFlow<GameUiState> = _uiState.asStateFlow()
 
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
     private val _selectedLeague = MutableStateFlow<String?>(null)
     val selectedLeague: StateFlow<String?> = _selectedLeague.asStateFlow()
 
@@ -44,6 +47,27 @@ class GameViewModel(
     fun retry() {
         _selectedLeague.value = null
         loadTodayMatches()
+    }
+
+    fun refresh() {
+        viewModelScope.launch(dispatcher) {
+            _isRefreshing.value = true
+            repository.getTodayMatches().collect { state ->
+                if (state !is GameState.Loading) {
+                    when (state) {
+                        is GameState.Success -> {
+                            allGames   = sortAndFilter(state.games)
+                            allLeagues = state.leagues
+                            notificationScheduler.scheduleAll(allGames)
+                            _uiState.value = GameUiState.Success(allGames, allLeagues)
+                        }
+                        is GameState.Error -> _uiState.value = GameUiState.Error(state.message)
+                        else -> {}
+                    }
+                    _isRefreshing.value = false
+                }
+            }
+        }
     }
 
     fun setLeagueFilter(leagueKey: String?) {

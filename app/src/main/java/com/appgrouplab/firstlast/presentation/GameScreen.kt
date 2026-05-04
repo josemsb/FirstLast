@@ -31,12 +31,14 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -56,10 +58,12 @@ import com.appgrouplab.firstlast.model.League
 import com.appgrouplab.firstlast.ui.theme.GreenFistLast
 import kotlinx.coroutines.delay
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GameScreen(viewModel: GameViewModel) {
     val uiState        by viewModel.uiState.collectAsState()
     val selectedLeague by viewModel.selectedLeague.collectAsState()
+    val isRefreshing   by viewModel.isRefreshing.collectAsState()
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -76,27 +80,30 @@ fun GameScreen(viewModel: GameViewModel) {
 
                 is GameUiState.Success -> {
                     LeagueFilterRow(
-                        leagues          = state.leagues,
+                        leagues           = state.leagues,
                         selectedLeagueKey = selectedLeague,
-                        onSelect         = { viewModel.setLeagueFilter(it) }
+                        onSelect          = { viewModel.setLeagueFilter(it) }
                     )
-                    if (state.games.isEmpty()) {
-                        EmptyMatchesScreen(onRetry = { viewModel.retry() })
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxHeight()
-                                .background(MaterialTheme.colorScheme.background),
-                            contentPadding = PaddingValues(
-                                start = 16.dp, end = 16.dp, top = 8.dp, bottom = 60.dp
-                            ),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            item {
-                                RetryButton(onClick = { viewModel.retry() })
-                            }
-                            items(state.games) { game ->
-                                GameCard(game = game)
+                    PullToRefreshBox(
+                        isRefreshing = isRefreshing,
+                        onRefresh    = { viewModel.refresh() },
+                        modifier     = Modifier.fillMaxSize()
+                    ) {
+                        if (state.games.isEmpty()) {
+                            EmptyMatchesScreen()
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(MaterialTheme.colorScheme.background),
+                                contentPadding = PaddingValues(
+                                    start = 16.dp, end = 16.dp, top = 8.dp, bottom = 60.dp
+                                ),
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                items(state.games) { game ->
+                                    GameCard(game = game)
+                                }
                             }
                         }
                     }
@@ -265,7 +272,7 @@ private fun LoadingScreen() {
 }
 
 @Composable
-private fun EmptyMatchesScreen(onRetry: () -> Unit) {
+private fun EmptyMatchesScreen() {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -291,17 +298,12 @@ private fun EmptyMatchesScreen(onRetry: () -> Unit) {
                 color = Color.Gray,
                 textAlign = TextAlign.Center
             )
-            RetryButton(onClick = onRetry)
+            Text(
+                text = "↓ Desliza hacia abajo para volver a buscar",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.LightGray,
+                textAlign = TextAlign.Center
+            )
         }
-    }
-}
-
-@Composable
-private fun RetryButton(onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        colors = ButtonDefaults.buttonColors(containerColor = GreenFistLast)
-    ) {
-        Text("🔄 Volver a buscar", color = Color.White)
     }
 }
