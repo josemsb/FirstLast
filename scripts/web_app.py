@@ -206,16 +206,14 @@ HTML = r"""<!DOCTYPE html>
         <div class="day-btns" id="day-btns"></div>
       </div>
     </div>
-    <div style="margin-top:16px" id="prompts-area" style="display:none">
-      <label>Prompts generados — selecciona el torneo y copia</label>
-      <div class="prompt-tabs" id="prompt-tabs"></div>
-      <textarea class="prompt-box" id="prompt-output" readonly></textarea>
+    <div style="margin-top:16px" id="prompts-area">
+      <label>Prompt generado — copia y pega en Gemini Studio</label>
+      <textarea class="prompt-box" id="prompt-output" readonly placeholder="Selecciona al menos un torneo para generar el prompt."></textarea>
       <div class="copy-bar">
         <button class="btn btn-green" onclick="copyPrompt()">📋 Copiar prompt</button>
         <span class="copy-status" id="copy-status"></span>
       </div>
     </div>
-    <p id="prompts-empty" style="color:#9e9e9e;font-size:.88rem;margin-top:12px">Selecciona al menos un torneo para generar el prompt.</p>
   </div>
 
   <!-- Importar JSON de Gemini -->
@@ -449,9 +447,8 @@ async function uploadAll(){
 
 // ── Generador de prompt ──────────────────────────────────────────────────────
 
-const DAY_LABELS = ['Hoy', 'Mañana', '+2 días', '+3 días'];
-let selectedDay  = 0;
-let activeTab    = 0;
+const DAY_LABELS    = ['Hoy', 'Mañana', '+2 días', '+3 días'];
+let selectedDay     = 0;
 let selectedLeagues = new Set();
 
 function buildDayButtons(){
@@ -461,7 +458,7 @@ function buildDayButtons(){
     const btn = document.createElement('button');
     btn.className = 'day-btn' + (i === selectedDay ? ' active' : '');
     btn.textContent = label;
-    btn.onclick = () => { selectedDay = i; buildDayButtons(); renderPrompts(); };
+    btn.onclick = () => { selectedDay = i; buildDayButtons(); renderPrompt(); };
     container.appendChild(btn);
   });
 }
@@ -477,8 +474,7 @@ function buildLeagueChips(){
       if(selectedLeagues.has(k)) selectedLeagues.delete(k);
       else selectedLeagues.add(k);
       chip.classList.toggle('checked', selectedLeagues.has(k));
-      activeTab = 0;
-      renderPrompts();
+      renderPrompt();
     };
     container.appendChild(chip);
   });
@@ -497,69 +493,51 @@ function formatDateReadable(d){
   return d.toLocaleDateString('es-PE',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 }
 
-function buildPromptText(leagueKey, leagueName, dateISO, dateHuman){
-  const jsonFormat = JSON.stringify([{
-    season: leagueKey,
-    homeTeam: "id_equipo_local",
-    visitingTeam: "id_equipo_visitante",
-    homePosition: 1,
-    visitingPosition: 14,
-    date: dateISO,
-    time_utc: "HH:MM"
-  }], null, 2);
-  return `Eres un extractor de datos deportivos.
+function renderPrompt(){
+  const ta       = document.getElementById('prompt-output');
+  const selected = [...selectedLeagues];
+  if(selected.length === 0){ ta.value = ''; return; }
 
-Liga: ${leagueName}
+  const target    = getTargetDate(selectedDay);
+  const dateISO   = formatDateISO(target);
+  const dateHuman = formatDateReadable(target);
+
+  const ligasList = selected.map((k,i) =>
+    `  ${i+1}. ${leagues[k]||k}  →  season: "${k}"`
+  ).join('\n');
+
+  const jsonExample = JSON.stringify(
+    selected.map(k => ({
+      season: k,
+      homeTeam: "nombre_equipo_local",
+      visitingTeam: "nombre_equipo_visitante",
+      homePosition: 1,
+      visitingPosition: 14,
+      date: dateISO,
+      time_utc: "HH:MM"
+    }))
+  , null, 2);
+
+  ta.value =
+`Eres un extractor de datos deportivos.
 Fecha buscada: ${dateISO} (${dateHuman})
 
-TAREA:
-1. Busca en sofascore.com o flashscore.com la tabla de posiciones ACTUAL de ${leagueName}.
+LIGAS A CONSULTAR:
+${ligasList}
+
+TAREA — repite estos pasos para CADA liga:
+1. Busca en sofascore.com o flashscore.com la tabla de posiciones ACTUAL de esa liga.
 2. Identifica el TOP 5 (posiciones 1-5) y el BOTTOM 5 (últimas 5 posiciones).
-3. Busca en el fixture/calendario de ${leagueName} si hay un partido programado el ${dateISO} donde un equipo del TOP 5 juegue contra uno del BOTTOM 5.
+3. Busca en el fixture de esa liga si hay un partido programado el ${dateISO} donde un equipo del TOP 5 juegue contra uno del BOTTOM 5.
 
 REGLAS:
 - La fecha del partido en la fuente DEBE ser exactamente ${dateISO}
-- Si no hay partido ese día entre TOP 5 y BOTTOM 5, devuelve lista vacía []
-- homeTeam y visitingTeam en minúsculas con guiones bajos (ej: "alianza_lima")
+- Si una liga no tiene partido ese día entre TOP 5 y BOTTOM 5, no la incluyas
+- homeTeam y visitingTeam: nombre del equipo en minúsculas con guiones bajos (ej: "alianza_lima")
 - time_utc en formato HH:MM en UTC
 
-Devuelve SOLO este JSON sin texto adicional:
-${jsonFormat}`;
-}
-
-function renderPrompts(){
-  const selected = [...selectedLeagues];
-  const area  = document.getElementById('prompts-area');
-  const empty = document.getElementById('prompts-empty');
-  const tabs  = document.getElementById('prompt-tabs');
-  const ta    = document.getElementById('prompt-output');
-
-  if(selected.length === 0){
-    area.style.display  = 'none';
-    empty.style.display = '';
-    return;
-  }
-  area.style.display  = '';
-  empty.style.display = 'none';
-
-  if(activeTab >= selected.length) activeTab = 0;
-
-  const target   = getTargetDate(selectedDay);
-  const dateISO  = formatDateISO(target);
-  const dateHuman= formatDateReadable(target);
-
-  tabs.innerHTML = '';
-  selected.forEach((k, i) => {
-    const btn = document.createElement('button');
-    btn.className = 'prompt-tab' + (i === activeTab ? ' active' : '');
-    btn.textContent = leagues[k] || k;
-    btn.onclick = () => { activeTab = i; renderPrompts(); };
-    tabs.appendChild(btn);
-  });
-
-  const key  = selected[activeTab];
-  const name = leagues[key] || key;
-  ta.value   = buildPromptText(key, name, dateISO, dateHuman);
+Devuelve SOLO este JSON con todos los partidos encontrados, sin texto adicional:
+${jsonExample}`;
 }
 
 async function importJson(mode){
@@ -610,7 +588,7 @@ function copyPrompt(){
 loadMeta().then(() => {
   buildLeagueChips();
   buildDayButtons();
-  renderPrompts();
+  renderPrompt();
   loadMatches();
 });
 </script>
