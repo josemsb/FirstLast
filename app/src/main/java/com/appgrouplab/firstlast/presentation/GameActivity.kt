@@ -35,16 +35,23 @@ class GameActivity : ComponentActivity() {
         )[GameViewModel::class.java]
     }
 
-    // true desde el inicio para usuarios que ya hicieron el onboarding
     private var adsUnlocked = false
+    private var pendingAd   = false
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) {
-        // permiso respondido (aceptado o denegado) — esperar 2s y habilitar intersticial
         lifecycleScope.launch {
             delay(2_000)
-            adsUnlocked = true
+            unlockAds()
+        }
+    }
+
+    private fun unlockAds() {
+        adsUnlocked = true
+        if (pendingAd) {
+            pendingAd = false
+            AdMobManager.showIfReady(this)
         }
     }
 
@@ -63,6 +70,8 @@ class GameActivity : ComponentActivity() {
             gameViewModel.showAd.collect {
                 if (adsUnlocked) {
                     AdMobManager.showIfReady(this@GameActivity)
+                } else {
+                    pendingAd = true
                 }
             }
         }
@@ -81,10 +90,9 @@ class GameActivity : ComponentActivity() {
                                 // el launcher callback habilitará adsUnlocked tras 2s
                                 notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                             } else {
-                                // Android < 13 no necesita permiso: habilitar tras breve pausa
                                 lifecycleScope.launch {
                                     delay(2_000)
-                                    adsUnlocked = true
+                                    unlockAds()
                                 }
                             }
                         }
