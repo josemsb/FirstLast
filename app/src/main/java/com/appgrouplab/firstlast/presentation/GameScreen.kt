@@ -15,6 +15,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -107,7 +110,12 @@ fun GameScreen(viewModel: GameViewModel) {
                                     .fillMaxSize()
                                     .background(MaterialTheme.colorScheme.background),
                                 contentPadding = PaddingValues(
-                                    start = 16.dp, end = 16.dp, top = 8.dp, bottom = 60.dp
+                                    start  = 16.dp,
+                                    end    = 16.dp,
+                                    top    = 8.dp,
+                                    bottom = 16.dp + WindowInsets.navigationBars
+                                        .asPaddingValues()
+                                        .calculateBottomPadding()
                                 ),
                                 verticalArrangement = Arrangement.spacedBy(16.dp)
                             ) {

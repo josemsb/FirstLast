@@ -1,21 +1,13 @@
 package com.appgrouplab.firstlast.presentation
 
 import android.Manifest
-import android.app.Activity
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.platform.LocalView
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.lifecycle.ViewModelProvider
@@ -60,6 +52,7 @@ class GameActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        enableEdgeToEdge()
         FirebaseApp.initializeApp(this)
         AdMobManager.preload(this)
 
@@ -82,7 +75,6 @@ class GameActivity : ComponentActivity() {
             val showOnboarding = remember { mutableStateOf(!onboardingPrefs.onboardingShown) }
 
             MaterialTheme {
-                ConfigurationStyleIconStatusBar()
                 if (showOnboarding.value) {
                     OnboardingScreen(
                         onFinish = {
@@ -107,16 +99,3 @@ class GameActivity : ComponentActivity() {
     }
 }
 
-@Composable
-fun ConfigurationStyleIconStatusBar(usaTemaOscuroApp: Boolean = isSystemInDarkTheme()) {
-    val view = LocalView.current
-    if (!view.isInEditMode) {
-        SideEffect {
-            val window = (view.context as Activity).window
-            WindowCompat.setDecorFitsSystemWindows(window, false)
-            window.statusBarColor = Color.Transparent.toArgb()
-            val insetsController = WindowInsetsControllerCompat(window, view)
-            insetsController.isAppearanceLightStatusBars = !usaTemaOscuroApp
-        }
-    }
-}
