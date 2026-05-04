@@ -158,9 +158,16 @@ HTML = r"""<!DOCTYPE html>
   .day-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
   .day-btn{padding:8px 16px;border:2px solid var(--border);border-radius:20px;background:#fff;cursor:pointer;font-size:.85rem;font-weight:600;color:#555;transition:all .2s}
   .day-btn.active{border-color:var(--green);background:var(--green);color:#fff}
-  .prompt-box{width:100%;min-height:220px;padding:12px;border:1px solid var(--border);border-radius:8px;font-size:.82rem;font-family:monospace;line-height:1.5;resize:vertical;background:#f9f9f9;color:#212121}
+  .league-checks{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+  .league-chip{display:flex;align-items:center;gap:6px;padding:6px 12px;border:2px solid var(--border);border-radius:20px;cursor:pointer;font-size:.85rem;font-weight:600;color:#555;transition:all .2s;user-select:none}
+  .league-chip input{display:none}
+  .league-chip.checked{border-color:var(--green);background:#e8f5e9;color:var(--green)}
+  .prompt-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+  .prompt-tab{padding:6px 14px;border:2px solid var(--border);border-radius:20px;background:#fff;cursor:pointer;font-size:.8rem;font-weight:600;color:#555;transition:all .2s}
+  .prompt-tab.active{border-color:var(--green);background:var(--green);color:#fff}
+  .prompt-box{width:100%;min-height:200px;padding:12px;border:1px solid var(--border);border-radius:8px;font-size:.82rem;font-family:monospace;line-height:1.5;resize:vertical;background:#f9f9f9;color:#212121}
   .copy-bar{display:flex;align-items:center;gap:10px;margin-top:8px}
-  #copy-status{font-size:.8rem;color:var(--green);font-weight:600}
+  .copy-status{font-size:.8rem;color:var(--green);font-weight:600}
   .section-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
   @media(max-width:600px){.section-row{grid-template-columns:1fr}}
 </style>
@@ -178,22 +185,24 @@ HTML = r"""<!DOCTYPE html>
     <h2>🤖 Generar consulta para Gemini Studio</h2>
     <div class="section-row">
       <div>
-        <label>Torneo</label>
-        <select id="g-league" onchange="generatePrompt()"></select>
+        <label>Torneos (selecciona uno o más)</label>
+        <div class="league-checks" id="league-checks"></div>
       </div>
       <div>
         <label>Día</label>
         <div class="day-btns" id="day-btns"></div>
       </div>
     </div>
-    <div style="margin-top:16px">
-      <label>Prompt generado — copia y pega en Gemini Studio</label>
+    <div style="margin-top:16px" id="prompts-area" style="display:none">
+      <label>Prompts generados — selecciona el torneo y copia</label>
+      <div class="prompt-tabs" id="prompt-tabs"></div>
       <textarea class="prompt-box" id="prompt-output" readonly></textarea>
       <div class="copy-bar">
         <button class="btn btn-green" onclick="copyPrompt()">📋 Copiar prompt</button>
-        <span id="copy-status"></span>
+        <span class="copy-status" id="copy-status"></span>
       </div>
     </div>
+    <p id="prompts-empty" style="color:#9e9e9e;font-size:.88rem;margin-top:12px">Selecciona al menos un torneo para generar el prompt.</p>
   </div>
 
   <!-- Formulario -->
@@ -406,7 +415,9 @@ async function uploadAll(){
 // ── Generador de prompt ──────────────────────────────────────────────────────
 
 const DAY_LABELS = ['Hoy', 'Mañana', '+2 días', '+3 días'];
-let selectedDay = 0;
+let selectedDay  = 0;
+let activeTab    = 0;
+let selectedLeagues = new Set();
 
 function buildDayButtons(){
   const container = document.getElementById('day-btns');
@@ -415,8 +426,28 @@ function buildDayButtons(){
     const btn = document.createElement('button');
     btn.className = 'day-btn' + (i === selectedDay ? ' active' : '');
     btn.textContent = label;
-    btn.onclick = () => { selectedDay = i; buildDayButtons(); generatePrompt(); };
+    btn.onclick = () => { selectedDay = i; buildDayButtons(); renderPrompts(); };
     container.appendChild(btn);
+  });
+}
+
+function buildLeagueChips(){
+  const container = document.getElementById('league-checks');
+  container.innerHTML = '';
+  Object.entries(leagues).sort((a,b)=>a[1].localeCompare(b[1])).forEach(([k,v])=>{
+    const chip = document.createElement('label');
+    chip.className = 'league-chip' + (selectedLeagues.has(k) ? ' checked' : '');
+    chip.innerHTML = `<input type="checkbox" value="${k}">${v}`;
+    chip.querySelector('input').checked = selectedLeagues.has(k);
+    chip.onclick = (e) => {
+      const key = chip.querySelector('input').value;
+      if(selectedLeagues.has(key)) selectedLeagues.delete(key);
+      else selectedLeagues.add(key);
+      chip.classList.toggle('checked', selectedLeagues.has(key));
+      activeTab = 0;
+      renderPrompts();
+    };
+    container.appendChild(chip);
   });
 }
 
@@ -425,51 +456,25 @@ function getTargetDate(offset){
   d.setDate(d.getDate() + offset);
   return d;
 }
-
 function formatDateISO(d){
-  return d.toISOString().split('T')[0];
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${dd}`;
 }
-
 function formatDateReadable(d){
-  return d.toLocaleDateString('es-PE', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+  return d.toLocaleDateString('es-PE',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 }
 
-function fillLeagueSelect(){
-  const sel = document.getElementById('g-league');
-  sel.innerHTML = '<option value="">— Selecciona torneo —</option>';
-  Object.entries(leagues).sort((a,b)=>a[1].localeCompare(b[1])).forEach(([k,v])=>{
-    const o = document.createElement('option');
-    o.value = k; o.textContent = v;
-    sel.appendChild(o);
-  });
-}
-
-function generatePrompt(){
-  const leagueKey  = document.getElementById('g-league').value;
-  const leagueName = leagues[leagueKey] || '';
-  const target     = getTargetDate(selectedDay);
-  const dateISO    = formatDateISO(target);
-  const dateHuman  = formatDateReadable(target);
-
-  if(!leagueKey){
-    document.getElementById('prompt-output').value = 'Selecciona un torneo para generar el prompt.';
-    return;
-  }
-
-  const jsonFormat = JSON.stringify([
-    {
-      season: leagueKey,
-      homeTeam: "id_equipo_local",
-      visitingTeam: "id_equipo_visitante",
-      homePosition: 1,
-      visitingPosition: 14,
-      date: dateISO,
-      time_utc: "HH:MM"
-    }
-  ], null, 2);
-
-  const prompt =
-`Eres un extractor de datos deportivos.
+function buildPromptText(leagueKey, leagueName, dateISO, dateHuman){
+  const jsonFormat = JSON.stringify([{
+    season: leagueKey,
+    homeTeam: "id_equipo_local",
+    visitingTeam: "id_equipo_visitante",
+    homePosition: 1,
+    visitingPosition: 14,
+    date: dateISO,
+    time_utc: "HH:MM"
+  }], null, 2);
+  return `Eres un extractor de datos deportivos.
 
 Liga: ${leagueName}
 Fecha buscada: ${dateISO} (${dateHuman})
@@ -482,18 +487,51 @@ TAREA:
 REGLAS:
 - La fecha del partido en la fuente DEBE ser exactamente ${dateISO}
 - Si no hay partido ese día entre TOP 5 y BOTTOM 5, devuelve lista vacía []
-- El campo homeTeam y visitingTeam deben ser el nombre del equipo en minúsculas con guiones bajos (ej: "alianza_lima")
-- time_utc debe estar en formato HH:MM en UTC
+- homeTeam y visitingTeam en minúsculas con guiones bajos (ej: "alianza_lima")
+- time_utc en formato HH:MM en UTC
 
-Devuelve SOLO este JSON, sin texto adicional:
+Devuelve SOLO este JSON sin texto adicional:
 ${jsonFormat}`;
+}
 
-  document.getElementById('prompt-output').value = prompt;
+function renderPrompts(){
+  const selected = [...selectedLeagues];
+  const area  = document.getElementById('prompts-area');
+  const empty = document.getElementById('prompts-empty');
+  const tabs  = document.getElementById('prompt-tabs');
+  const ta    = document.getElementById('prompt-output');
+
+  if(selected.length === 0){
+    area.style.display  = 'none';
+    empty.style.display = '';
+    return;
+  }
+  area.style.display  = '';
+  empty.style.display = 'none';
+
+  if(activeTab >= selected.length) activeTab = 0;
+
+  const target   = getTargetDate(selectedDay);
+  const dateISO  = formatDateISO(target);
+  const dateHuman= formatDateReadable(target);
+
+  tabs.innerHTML = '';
+  selected.forEach((k, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'prompt-tab' + (i === activeTab ? ' active' : '');
+    btn.textContent = leagues[k] || k;
+    btn.onclick = () => { activeTab = i; renderPrompts(); };
+    tabs.appendChild(btn);
+  });
+
+  const key  = selected[activeTab];
+  const name = leagues[key] || key;
+  ta.value   = buildPromptText(key, name, dateISO, dateHuman);
 }
 
 function copyPrompt(){
   const ta = document.getElementById('prompt-output');
-  if(!ta.value || ta.value.startsWith('Selecciona')) return;
+  if(!ta.value) return;
   navigator.clipboard.writeText(ta.value).then(()=>{
     const s = document.getElementById('copy-status');
     s.textContent = '✅ Copiado';
@@ -502,9 +540,9 @@ function copyPrompt(){
 }
 
 loadMeta().then(() => {
-  fillLeagueSelect();
+  buildLeagueChips();
   buildDayButtons();
-  generatePrompt();
+  renderPrompts();
   loadMatches();
 });
 </script>
