@@ -2,7 +2,7 @@ name: Daily Match Filler
 
 on:
   schedule:
-    - cron: '30 4 * * *'   # 11:30pm Perú (UTC-5) = 4:30am UTC — busca partidos del día siguiente
+    - cron: '10 5 * * *'   # 00:10am Perú (UTC-5) = 5:10am UTC — busca partidos del día actual
   workflow_dispatch:         # permite ejecución manual desde GitHub
 
 jobs:
@@ -27,4 +27,4 @@ jobs:
           GEMINI_API_KEY:            ${{ secrets.GEMINI_API_KEY }}
           FIREBASE_SERVICE_ACCOUNT:  ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           APP_TIMEZONE:              America/Lima
-          DAYS_AHEAD:                "1"
+          DAYS_AHEAD:                "0"
