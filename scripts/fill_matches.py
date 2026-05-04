@@ -10,6 +10,7 @@ import os
 import re
 import unicodedata
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 import firebase_admin
 from firebase_admin import credentials, firestore
@@ -222,7 +223,8 @@ def main():
     db     = init_firebase()
     client = make_gemini_client()
 
-    today          = datetime.now(timezone.utc)
+    tz             = ZoneInfo(os.environ.get("APP_TIMEZONE", "America/Lima"))
+    today          = datetime.now(tz)
     today_str      = today.strftime("%Y-%m-%d")
     today_readable = today.strftime("%-d de %B de %Y")
 
