@@ -26,3 +26,6 @@ captures/
 
 # Proguard
 out/
+
+# Firebase credentials — nunca subir al repo
+scripts/serviceAccount.json
