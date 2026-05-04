@@ -13,8 +13,11 @@ import com.appgrouplab.firstlast.model.League
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -27,7 +30,10 @@ class GameViewModel(
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : AndroidViewModel(application) {
 
-    private companion object { const val TAG = "GameViewModel" }
+    private companion object {
+        const val TAG = "GameViewModel"
+        const val AD_EVERY_N_REFRESHES = 3
+    }
 
     private val notificationScheduler  = NotificationScheduler(application)
     private val notificationPreferences = NotificationPreferences(application)
@@ -44,8 +50,13 @@ class GameViewModel(
     private val _selectedLeague = MutableStateFlow<String?>(null)
     val selectedLeague: StateFlow<String?> = _selectedLeague.asStateFlow()
 
+    private val _showAd = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val showAd: SharedFlow<Unit> = _showAd.asSharedFlow()
+
     private var allGames: List<Game> = emptyList()
     private var allLeagues: List<League> = emptyList()
+    private var isFirstLoad = true
+    private var refreshCount = 0
 
     init { loadTodayMatches() }
 
@@ -81,6 +92,10 @@ class GameViewModel(
                         else -> {}
                     }
                     _isRefreshing.value = false
+                    refreshCount++
+                    if (refreshCount % AD_EVERY_N_REFRESHES == 0) {
+                        _showAd.tryEmit(Unit)
+                    }
                 }
             }
         }
@@ -115,6 +130,12 @@ class GameViewModel(
 
             timerJob.join()
             _uiState.value = result
+
+            if (isFirstLoad && result is GameUiState.Success) {
+                isFirstLoad = false
+                delay(3_000)
+                _showAd.tryEmit(Unit)
+            }
         }
     }
 

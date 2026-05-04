@@ -19,8 +19,11 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import com.appgrouplab.firstlast.data.OnboardingPreferences
+import com.appgrouplab.firstlast.presentation.util.AdMobManager
 import com.google.firebase.FirebaseApp
+import kotlinx.coroutines.launch
 
 class GameActivity : ComponentActivity() {
 
@@ -39,9 +42,16 @@ class GameActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         FirebaseApp.initializeApp(this)
+        AdMobManager.preload(this)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
+        lifecycleScope.launch {
+            gameViewModel.showAd.collect {
+                AdMobManager.showIfReady(this@GameActivity)
+            }
         }
 
         val onboardingPrefs = OnboardingPreferences(this)
