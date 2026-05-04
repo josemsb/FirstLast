@@ -81,7 +81,7 @@ fun GameScreen(viewModel: GameViewModel) {
                         onSelect         = { viewModel.setLeagueFilter(it) }
                     )
                     if (state.games.isEmpty()) {
-                        EmptyMatchesScreen()
+                        EmptyMatchesScreen(onRetry = { viewModel.retry() })
                     } else {
                         LazyColumn(
                             modifier = Modifier
@@ -92,6 +92,9 @@ fun GameScreen(viewModel: GameViewModel) {
                             ),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
+                            item {
+                                RetryButton(onClick = { viewModel.retry() })
+                            }
                             items(state.games) { game ->
                                 GameCard(game = game)
                             }
@@ -262,7 +265,7 @@ private fun LoadingScreen() {
 }
 
 @Composable
-private fun EmptyMatchesScreen() {
+private fun EmptyMatchesScreen(onRetry: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -288,6 +291,17 @@ private fun EmptyMatchesScreen() {
                 color = Color.Gray,
                 textAlign = TextAlign.Center
             )
+            RetryButton(onClick = onRetry)
         }
+    }
+}
+
+@Composable
+private fun RetryButton(onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        colors = ButtonDefaults.buttonColors(containerColor = GreenFistLast)
+    ) {
+        Text("🔄 Volver a buscar", color = Color.White)
     }
 }
