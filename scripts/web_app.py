@@ -532,6 +532,7 @@ TAREA — repite estos pasos para CADA liga:
 
 REGLAS:
 - La fecha del partido en la fuente DEBE ser exactamente ${dateISO}
+- Si no hay partido ese día entre TOP 5 y BOTTOM 5 o viceversa, devuelve lista vacía []
 - Si una liga no tiene partido ese día entre TOP 5 y BOTTOM 5, no la incluyas
 - homeTeam y visitingTeam: nombre del equipo en minúsculas con guiones bajos (ej: "alianza_lima")
 - time_utc en formato HH:MM en UTC
