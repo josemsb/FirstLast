@@ -9,7 +9,7 @@ import json
 import os
 import re
 import unicodedata
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 
 import firebase_admin
@@ -224,9 +224,10 @@ def main():
     client = make_gemini_client()
 
     tz             = ZoneInfo(os.environ.get("APP_TIMEZONE", "America/Lima"))
-    today          = datetime.now(tz)
-    today_str      = today.strftime("%Y-%m-%d")
-    today_readable = today.strftime("%-d de %B de %Y")
+    days_ahead     = int(os.environ.get("DAYS_AHEAD", "1"))
+    target         = datetime.now(tz) + timedelta(days=days_ahead)
+    today_str      = target.strftime("%Y-%m-%d")
+    today_readable = target.strftime("%-d de %B de %Y")
 
     print(f"\n📅 Procesando partidos para: {today_str}\n")
 
