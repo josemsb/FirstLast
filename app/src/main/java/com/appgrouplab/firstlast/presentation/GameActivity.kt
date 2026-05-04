@@ -43,15 +43,17 @@ class GameActivity : ComponentActivity() {
     ) {
         lifecycleScope.launch {
             delay(2_000)
-            unlockAds()
+            unlockAds(showPending = false)
         }
     }
 
-    private fun unlockAds() {
+    private fun unlockAds(showPending: Boolean = true) {
         adsUnlocked = true
-        if (pendingAd) {
+        if (showPending && pendingAd) {
             pendingAd = false
             AdMobManager.showIfReady(this)
+        } else {
+            pendingAd = false
         }
     }
 
@@ -92,7 +94,7 @@ class GameActivity : ComponentActivity() {
                             } else {
                                 lifecycleScope.launch {
                                     delay(2_000)
-                                    unlockAds()
+                                    unlockAds(showPending = false)
                                 }
                             }
                         }
