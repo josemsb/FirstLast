@@ -16,7 +16,10 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.lifecycle.ViewModelProvider
+import com.appgrouplab.firstlast.data.OnboardingPreferences
 import com.google.firebase.FirebaseApp
 
 class GameActivity : ComponentActivity() {
@@ -41,22 +44,23 @@ class GameActivity : ComponentActivity() {
             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
 
+        val onboardingPrefs = OnboardingPreferences(this)
+
         setContent {
-//            val shouldAttemptAd = remember { Random.nextFloat() < 0.7f }
-//            if (shouldAttemptAd) {
-//                val showAdd = rememberSaveable { mutableStateOf(false) }
-//                LaunchedEffect(Unit) {
-//                    AdMobManager.loadInterstitial(this@GameActivity, showAdd)
-//                }
-//
-//                if (showAdd.value) {
-//                    AdMobManager.showInterstitial(this@GameActivity, showAdd)
-//                    showAdd.value = false
-//                }
-//            }
+            val showOnboarding = remember { mutableStateOf(!onboardingPrefs.onboardingShown) }
+
             MaterialTheme {
                 ConfigurationStyleIconStatusBar()
-                GameScreen(gameViewModel)
+                if (showOnboarding.value) {
+                    OnboardingScreen(
+                        onFinish = {
+                            onboardingPrefs.onboardingShown = true
+                            showOnboarding.value = false
+                        }
+                    )
+                } else {
+                    GameScreen(gameViewModel)
+                }
             }
         }
     }
