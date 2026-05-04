@@ -81,17 +81,7 @@ fun GameScreen(viewModel: GameViewModel) {
                         onSelect         = { viewModel.setLeagueFilter(it) }
                     )
                     if (state.games.isEmpty()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(MaterialTheme.colorScheme.background),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "No hay partidos disponibles",
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                        }
+                        EmptyMatchesScreen()
                     } else {
                         LazyColumn(
                             modifier = Modifier
@@ -266,6 +256,37 @@ private fun LoadingScreen() {
                 color = GreenFistLast,
                 strokeWidth = 3.dp,
                 modifier = Modifier.size(36.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun EmptyMatchesScreen() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+            modifier = Modifier.padding(horizontal = 36.dp)
+        ) {
+            Text(text = "😴", fontSize = 56.sp)
+            Text(
+                text = "Sin partidos hoy",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = GreenFistLast,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = "Te hemos buscado los partidos del top 5 vs los últimos 5 de cada tabla y hoy no hay.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.Gray,
+                textAlign = TextAlign.Center
             )
         }
     }
