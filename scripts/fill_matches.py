@@ -9,7 +9,7 @@ import json
 import os
 import re
 import unicodedata
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 
 import firebase_admin
@@ -135,22 +135,25 @@ def get_standings(client, league_name: str, today_str: str) -> list[dict] | None
 # ── Prompt 2: partido del día ────────────────────────────────────────────────
 
 MATCH_PROMPT = """
-Fecha exacta: {today} ({today_readable}).
+Fecha exacta buscada: {today} ({today_readable}).
 Liga: {league_name}
 
 TOP 5 (primeros de la tabla): {top5}
 BOTTOM 5 (últimos de la tabla): {bottom5}
 
 Busca en sofascore.com o flashscore.com si hay un partido programado
-HOY {today} donde un equipo del TOP 5 juegue contra un equipo del BOTTOM 5.
+el día {today} donde un equipo del TOP 5 juegue contra un equipo del BOTTOM 5.
 
 REGLAS CRÍTICAS:
 - Los equipos del resultado DEBEN estar exactamente en las listas anteriores
+- La fecha del partido DEBE ser exactamente {today} — no el día anterior ni posterior
+- Si el partido es de otra fecha, devuelve null
 - Si no encuentras el partido en una fuente oficial devuelve null
 - Convierte el horario a UTC
+- El campo match_date debe reflejar la fecha REAL del partido según la fuente
 
 Devuelve SOLO este JSON:
-{{"match": {{"home_name": "nombre exacto de la lista", "away_name": "nombre exacto de la lista", "time_utc": "HH:MM"}}}}
+{{"match": {{"home_name": "nombre exacto de la lista", "away_name": "nombre exacto de la lista", "time_utc": "HH:MM", "match_date": "{today}"}}}}
 o si no hay partido:
 {{"match": null}}
 """.strip()
@@ -174,14 +177,18 @@ def find_match_today(client, league_name: str, top5: list, bottom5: list,
 # ── Validación y resolución de keys ──────────────────────────────────────────
 
 def validate_and_resolve(match: dict, top5: list, bottom5: list,
-                         team_keys: set) -> dict | None:
+                         team_keys: set, today_str: str) -> dict | None:
+    match_date = match.get("match_date", "")
+    if match_date and match_date != today_str:
+        print(f"  ❌ Fecha incorrecta: la IA devolvió partido del {match_date}, se busca {today_str}")
+        return None
+
     all_teams = {t["team_name"].lower(): t for t in top5 + bottom5}
 
     home_entry = all_teams.get(match["home_name"].lower())
     away_entry = all_teams.get(match["away_name"].lower())
 
     if not home_entry or not away_entry:
-        # La IA devolvió un equipo que no estaba en las listas → descartar
         print(f"  ❌ Equipos no encontrados en lista: '{match['home_name']}', '{match['away_name']}'")
         return None
 
@@ -198,13 +205,14 @@ def validate_and_resolve(match: dict, top5: list, bottom5: list,
 
 # ── Escritura en Firestore ────────────────────────────────────────────────────
 
-def write_game(db, league_key: str, game: dict, today: datetime):
+def write_game(db, league_key: str, game: dict, today_str: str):
     try:
         h, m = map(int, game["time_utc"].split(":"))
     except ValueError:
         h, m = 0, 0
 
-    match_dt = today.replace(hour=h, minute=m, second=0, microsecond=0)
+    y, mo, d = map(int, today_str.split("-"))
+    match_dt = datetime(y, mo, d, h, m, 0, tzinfo=timezone.utc)
 
     db.collection("game").add({
         "season"          : league_key,
@@ -224,9 +232,10 @@ def main():
     client = make_gemini_client()
 
     tz             = ZoneInfo(os.environ.get("APP_TIMEZONE", "America/Lima"))
-    today          = datetime.now(tz)
-    today_str      = today.strftime("%Y-%m-%d")
-    today_readable = today.strftime("%-d de %B de %Y")
+    days_ahead     = int(os.environ.get("DAYS_AHEAD", "1"))
+    target         = datetime.now(tz) + timedelta(days=days_ahead)
+    today_str      = target.strftime("%Y-%m-%d")
+    today_readable = target.strftime("%-d de %B de %Y")
 
     print(f"\n📅 Procesando partidos para: {today_str}\n")
 
@@ -266,11 +275,11 @@ def main():
         print(f"  🔍 Partido encontrado: {match['home_name']} vs {match['away_name']}")
 
         # Validar equipos contra listas enviadas + resolver keys de Firestore
-        resolved = validate_and_resolve(match, top5, bottom5, team_keys)
+        resolved = validate_and_resolve(match, top5, bottom5, team_keys, today_str)
         if not resolved:
             continue
 
-        write_game(db, league_key, resolved, today)
+        write_game(db, league_key, resolved, today_str)
         saved += 1
 
     print(f"\n✅ Proceso completado — {saved} partido(s) guardado(s) para {today_str}")
