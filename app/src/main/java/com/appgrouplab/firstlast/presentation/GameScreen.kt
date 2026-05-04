@@ -111,8 +111,11 @@ fun GameScreen(viewModel: GameViewModel) {
                                 ),
                                 verticalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
-                                items(state.games) { game ->
-                                    GameCard(game = game)
+                                state.games.forEachIndexed { index, game ->
+                                    item { GameCard(game = game) }
+                                    if (index == 0) {
+                                        item { NativeAdCard() }
+                                    }
                                 }
                             }
                         }
@@ -283,37 +286,44 @@ private fun LoadingScreen() {
 
 @Composable
 private fun EmptyMatchesScreen() {
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
-        contentAlignment = Alignment.Center
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(20.dp),
-            modifier = Modifier.padding(horizontal = 36.dp)
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            contentAlignment = Alignment.Center
         ) {
-            Text(text = "😴", fontSize = 56.sp)
-            Text(
-                text = "Sin partidos hoy",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = GreenFistLast,
-                textAlign = TextAlign.Center
-            )
-            Text(
-                text = "Te hemos buscado los partidos del top 5 vs los últimos 5 de cada tabla y hoy no hay.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.Gray,
-                textAlign = TextAlign.Center
-            )
-            Text(
-                text = "↓ Desliza hacia abajo para volver a buscar",
-                style = MaterialTheme.typography.labelSmall,
-                color = Color.LightGray,
-                textAlign = TextAlign.Center
-            )
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(20.dp),
+                modifier = Modifier.padding(horizontal = 36.dp)
+            ) {
+                Text(text = "😴", fontSize = 56.sp)
+                Text(
+                    text = "Sin partidos hoy",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = GreenFistLast,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = "Te hemos buscado los partidos del top 5 vs los últimos 5 de cada tabla y hoy no hay.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.Gray,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = "↓ Desliza hacia abajo para volver a buscar",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.LightGray,
+                    textAlign = TextAlign.Center
+                )
+            }
         }
+        NativeAdCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
     }
 }
