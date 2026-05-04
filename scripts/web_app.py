@@ -88,6 +88,19 @@ def delete_match(idx):
         save_matches(matches)
     return jsonify({"ok": True})
 
+@app.route("/api/matches/import", methods=["POST"])
+def import_matches():
+    data   = request.json
+    mode   = data.get("mode", "add")   # "add" | "replace"
+    entries = data.get("entries", [])
+    if mode == "replace":
+        save_matches(entries)
+    else:
+        current = read_matches()
+        current.extend(entries)
+        save_matches(current)
+    return jsonify({"ok": True, "total": len(read_matches())})
+
 @app.route("/api/upload", methods=["POST"])
 def upload():
     if db is None:
@@ -203,6 +216,28 @@ HTML = r"""<!DOCTYPE html>
       </div>
     </div>
     <p id="prompts-empty" style="color:#9e9e9e;font-size:.88rem;margin-top:12px">Selecciona al menos un torneo para generar el prompt.</p>
+  </div>
+
+  <!-- Importar JSON de Gemini -->
+  <div class="card">
+    <h2>📥 Importar respuesta de Gemini Studio</h2>
+    <label>Pega aquí el JSON que te devolvió Gemini Studio</label>
+    <textarea class="prompt-box" id="json-input" placeholder='[
+  {
+    "season": "liga_peruana",
+    "homeTeam": "alianza_lima",
+    "visitingTeam": "deportivo_garcilaso",
+    "homePosition": 1,
+    "visitingPosition": 14,
+    "date": "2026-05-05",
+    "time_utc": "18:00"
+  }
+]' style="min-height:160px;background:#fff"></textarea>
+    <div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <button class="btn btn-green" onclick="importJson('add')">➕ Agregar a la lista</button>
+      <button class="btn btn-outline" onclick="importJson('replace')">🔄 Reemplazar lista</button>
+      <span class="copy-status" id="import-status"></span>
+    </div>
   </div>
 
   <!-- Formulario -->
@@ -525,6 +560,41 @@ function renderPrompts(){
   const key  = selected[activeTab];
   const name = leagues[key] || key;
   ta.value   = buildPromptText(key, name, dateISO, dateHuman);
+}
+
+async function importJson(mode){
+  const raw    = document.getElementById('json-input').value.trim();
+  const status = document.getElementById('import-status');
+  if(!raw){ status.textContent = '⚠️ Pega un JSON primero'; return; }
+
+  let entries;
+  try {
+    const parsed = JSON.parse(raw);
+    entries = Array.isArray(parsed) ? parsed : [parsed];
+  } catch(e) {
+    status.textContent = '❌ JSON inválido: ' + e.message;
+    status.style.color = 'var(--red)';
+    return;
+  }
+
+  const required = ['season','homeTeam','visitingTeam','homePosition','visitingPosition','date','time_utc'];
+  const invalid  = entries.filter(e => required.some(f => !(f in e)));
+  if(invalid.length){
+    status.textContent = `❌ ${invalid.length} entrada(s) sin campos requeridos`;
+    status.style.color = 'var(--red)';
+    return;
+  }
+
+  const r = await fetch('/api/matches/import', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({mode, entries})
+  });
+  const d = await r.json();
+  status.textContent = `✅ ${entries.length} partido(s) ${mode==='replace'?'cargados':'agregados'} — total: ${d.total}`;
+  status.style.color = 'var(--green)';
+  document.getElementById('json-input').value = '';
+  loadMatches();
 }
 
 function copyPrompt(){
