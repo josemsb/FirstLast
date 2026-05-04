@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "387024964781",
+    "project_id": "firstlast-66223",
+    "storage_bucket": "firstlast-66223.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:387024964781:android:d89a8d221ae33ed9f04a24",
+        "android_client_info": {
+          "package_name": "com.appgrouplab.firstlast"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCYG-omqytNNu3Q6k9F_ORxYzmr5RAKfVk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

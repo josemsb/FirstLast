@@ -63,6 +63,19 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "META-INF/INDEX.LIST"
+            excludes += "META-INF/DEPENDENCIES"
+            excludes += "META-INF/io.netty.versions.properties"
+            excludes += "**/*.proto"
+        }
+    }
+}
+
+configurations.all {
+    resolutionStrategy.eachDependency {
+        if (requested.group == "com.google.protobuf" && requested.name == "protobuf-java") {
+            useTarget("com.google.protobuf:protobuf-javalite:${requested.version}")
+            because("Android requires protobuf-javalite, not protobuf-java")
         }
     }
 }
@@ -82,9 +95,10 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:34.3.0"))
     implementation(libs.firebase.analytics)
     implementation(libs.firebase.perf)
+    implementation(libs.firebase.firestore)
+    implementation(libs.workmanager)
     implementation(libs.androidx.lifecycle.process)
 
-    implementation(libs.generativeai)
     implementation(libs.kotlinx.serialization.json)
 
     testImplementation(libs.junit)
