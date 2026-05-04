@@ -135,26 +135,28 @@ def get_standings(client, league_name: str, today_str: str) -> list[dict] | None
 # ── Prompt 2: partido del día ────────────────────────────────────────────────
 
 MATCH_PROMPT = """
-Fecha exacta buscada: {today} ({today_readable}).
+Fecha buscada: {today} ({today_readable}).
 Liga: {league_name}
 
 TOP 5 (primeros de la tabla): {top5}
 BOTTOM 5 (últimos de la tabla): {bottom5}
 
-Busca en sofascore.com o flashscore.com si hay un partido programado
-el día {today} donde un equipo del TOP 5 juegue contra un equipo del BOTTOM 5.
+Busca en sofascore.com o flashscore.com el fixture/calendario de {league_name}
+para el día {today}. Necesito un partido AÚN NO JUGADO (estado: scheduled/upcoming)
+donde un equipo del TOP 5 juegue contra un equipo del BOTTOM 5.
 
-REGLAS CRÍTICAS:
-- Los equipos del resultado DEBEN estar exactamente en las listas anteriores
-- La fecha del partido DEBE ser exactamente {today} — no el día anterior ni posterior
-- Si el partido es de otra fecha, devuelve null
-- Si no encuentras el partido en una fuente oficial devuelve null
-- Convierte el horario a UTC
-- El campo match_date debe reflejar la fecha REAL del partido según la fuente
+REGLAS CRÍTICAS — LEE CADA UNA:
+1. La fuente DEBE mostrar el partido con fecha {today} en su fixture/calendario
+2. El partido NO debe haber sido jugado — estado scheduled, not started, upcoming
+3. Si el partido aparece como FT (full time) o ya terminó, devuelve null
+4. Si la fecha en la fuente es distinta de {today}, devuelve null
+5. Los equipos del resultado DEBEN estar exactamente en las listas de arriba
+6. Convierte el horario a UTC
+7. match_date debe ser la fecha EXACTA que figura en la fuente ({today})
 
 Devuelve SOLO este JSON:
 {{"match": {{"home_name": "nombre exacto de la lista", "away_name": "nombre exacto de la lista", "time_utc": "HH:MM", "match_date": "{today}"}}}}
-o si no hay partido:
+o si no hay partido válido:
 {{"match": null}}
 """.strip()
 
