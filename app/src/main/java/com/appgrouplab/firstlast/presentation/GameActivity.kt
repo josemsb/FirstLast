@@ -23,6 +23,7 @@ import androidx.lifecycle.lifecycleScope
 import com.appgrouplab.firstlast.data.OnboardingPreferences
 import com.appgrouplab.firstlast.presentation.util.AdMobManager
 import com.google.firebase.FirebaseApp
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class GameActivity : ComponentActivity() {
@@ -34,9 +35,18 @@ class GameActivity : ComponentActivity() {
         )[GameViewModel::class.java]
     }
 
+    // true desde el inicio para usuarios que ya hicieron el onboarding
+    private var adsUnlocked = false
+
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { /* permiso otorgado o denegado — las notificaciones se programan igual */ }
+    ) {
+        // permiso respondido (aceptado o denegado) — esperar 2s y habilitar intersticial
+        lifecycleScope.launch {
+            delay(2_000)
+            adsUnlocked = true
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,9 +56,12 @@ class GameActivity : ComponentActivity() {
 
         val onboardingPrefs = OnboardingPreferences(this)
 
+        // usuarios existentes: los anuncios están habilitados desde el inicio
+        adsUnlocked = onboardingPrefs.onboardingShown
+
         lifecycleScope.launch {
             gameViewModel.showAd.collect {
-                if (onboardingPrefs.onboardingShown) {
+                if (adsUnlocked) {
                     AdMobManager.showIfReady(this@GameActivity)
                 }
             }
@@ -65,7 +78,14 @@ class GameActivity : ComponentActivity() {
                             onboardingPrefs.onboardingShown = true
                             showOnboarding.value = false
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                // el launcher callback habilitará adsUnlocked tras 2s
                                 notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            } else {
+                                // Android < 13 no necesita permiso: habilitar tras breve pausa
+                                lifecycleScope.launch {
+                                    delay(2_000)
+                                    adsUnlocked = true
+                                }
                             }
                         }
                     )
