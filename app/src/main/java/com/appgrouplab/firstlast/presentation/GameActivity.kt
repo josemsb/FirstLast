@@ -7,6 +7,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import com.appgrouplab.firstlast.ui.theme.FirstLastTheme
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -75,24 +78,28 @@ class GameActivity : ComponentActivity() {
             val showOnboarding = remember { mutableStateOf(!onboardingPrefs.onboardingShown) }
 
             FirstLastTheme {
-                if (showOnboarding.value) {
-                    OnboardingScreen(
-                        onFinish = {
-                            onboardingPrefs.onboardingShown = true
-                            showOnboarding.value = false
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                // el launcher callback habilitará adsUnlocked tras 2s
-                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                            } else {
-                                lifecycleScope.launch {
-                                    delay(2_000)
-                                    unlockAds(showPending = false)
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color    = MaterialTheme.colorScheme.background
+                ) {
+                    if (showOnboarding.value) {
+                        OnboardingScreen(
+                            onFinish = {
+                                onboardingPrefs.onboardingShown = true
+                                showOnboarding.value = false
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                } else {
+                                    lifecycleScope.launch {
+                                        delay(2_000)
+                                        unlockAds(showPending = false)
+                                    }
                                 }
                             }
-                        }
-                    )
-                } else {
-                    GameScreen(gameViewModel)
+                        )
+                    } else {
+                        GameScreen(gameViewModel)
+                    }
                 }
             }
         }
