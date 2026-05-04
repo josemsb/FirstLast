@@ -44,11 +44,6 @@ private data class OnboardingPage(
 
 private val pages = listOf(
     OnboardingPage(
-        emoji       = "⚽",
-        title       = "Bienvenido a FirstLast",
-        description = "Tu app de fútbol que trabaja por ti. Cada día buscamos los partidos más interesantes de las mejores ligas del mundo."
-    ),
-    OnboardingPage(
         emoji       = "🏆 vs 🔻",
         title       = "Top 5 contra Bottom 5",
         description = "Solo te mostramos los partidos donde los líderes de la tabla se enfrentan a los últimos.\nLos duelos con más tensión, los que más importan."

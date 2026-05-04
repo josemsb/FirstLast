@@ -44,10 +44,6 @@ class GameActivity : ComponentActivity() {
         FirebaseApp.initializeApp(this)
         AdMobManager.preload(this)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
-
         val onboardingPrefs = OnboardingPreferences(this)
 
         lifecycleScope.launch {
@@ -68,6 +64,9 @@ class GameActivity : ComponentActivity() {
                         onFinish = {
                             onboardingPrefs.onboardingShown = true
                             showOnboarding.value = false
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            }
                         }
                     )
                 } else {
