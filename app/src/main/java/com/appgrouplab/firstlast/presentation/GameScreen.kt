@@ -44,6 +44,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -61,9 +62,11 @@ import kotlinx.coroutines.delay
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GameScreen(viewModel: GameViewModel) {
-    val uiState        by viewModel.uiState.collectAsState()
-    val selectedLeague by viewModel.selectedLeague.collectAsState()
-    val isRefreshing   by viewModel.isRefreshing.collectAsState()
+    val uiState             by viewModel.uiState.collectAsState()
+    val selectedLeague      by viewModel.selectedLeague.collectAsState()
+    val isRefreshing        by viewModel.isRefreshing.collectAsState()
+    val notificationsEnabled by viewModel.notificationsEnabled.collectAsState()
+    var showSettings        by remember { mutableStateOf(false) }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -74,7 +77,14 @@ fun GameScreen(viewModel: GameViewModel) {
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            DashboardTopSection()
+            DashboardTopSection(onSettingsClick = { showSettings = true })
+            if (showSettings) {
+                SettingsDialog(
+                    notificationsEnabled  = notificationsEnabled,
+                    onToggleNotifications = { viewModel.toggleNotifications(it) },
+                    onDismiss             = { showSettings = false }
+                )
+            }
             when (val state = uiState) {
                 is GameUiState.Loading -> LoadingScreen()
 

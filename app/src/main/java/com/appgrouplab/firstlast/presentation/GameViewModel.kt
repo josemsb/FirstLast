@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.appgrouplab.firstlast.data.GameRepository
 import com.appgrouplab.firstlast.data.GameState
+import com.appgrouplab.firstlast.data.NotificationPreferences
 import com.appgrouplab.firstlast.data.NotificationScheduler
 import com.appgrouplab.firstlast.model.Game
 import com.appgrouplab.firstlast.model.League
@@ -28,7 +29,11 @@ class GameViewModel(
 
     private companion object { const val TAG = "GameViewModel" }
 
-    private val notificationScheduler = NotificationScheduler(application)
+    private val notificationScheduler  = NotificationScheduler(application)
+    private val notificationPreferences = NotificationPreferences(application)
+
+    private val _notificationsEnabled = MutableStateFlow(notificationPreferences.notificationsEnabled)
+    val notificationsEnabled: StateFlow<Boolean> = _notificationsEnabled.asStateFlow()
 
     private val _uiState = MutableStateFlow<GameUiState>(GameUiState.Loading)
     val uiState: StateFlow<GameUiState> = _uiState.asStateFlow()
@@ -49,6 +54,16 @@ class GameViewModel(
         loadTodayMatches()
     }
 
+    fun toggleNotifications(enabled: Boolean) {
+        notificationPreferences.notificationsEnabled = enabled
+        _notificationsEnabled.value = enabled
+        if (enabled) {
+            notificationScheduler.scheduleAll(allGames)
+        } else {
+            notificationScheduler.cancelAll()
+        }
+    }
+
     fun refresh() {
         viewModelScope.launch(dispatcher) {
             _isRefreshing.value = true
@@ -58,7 +73,8 @@ class GameViewModel(
                         is GameState.Success -> {
                             allGames   = sortAndFilter(state.games)
                             allLeagues = state.leagues
-                            notificationScheduler.scheduleAll(allGames)
+                            if (notificationPreferences.notificationsEnabled)
+                                notificationScheduler.scheduleAll(allGames)
                             _uiState.value = GameUiState.Success(allGames, allLeagues)
                         }
                         is GameState.Error -> _uiState.value = GameUiState.Error(state.message)
@@ -87,7 +103,8 @@ class GameViewModel(
                         is GameState.Success -> {
                             allGames   = sortAndFilter(state.games)
                             allLeagues = state.leagues
-                            notificationScheduler.scheduleAll(allGames)
+                            if (notificationPreferences.notificationsEnabled)
+                                notificationScheduler.scheduleAll(allGames)
                             GameUiState.Success(allGames, allLeagues)
                         }
                         is GameState.Error -> GameUiState.Error(state.message)

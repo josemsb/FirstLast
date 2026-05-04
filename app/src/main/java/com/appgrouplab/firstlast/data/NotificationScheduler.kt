@@ -16,6 +16,10 @@ class NotificationScheduler(private val context: Context) {
         private const val ONE_HOUR_MS = 3_600_000L
     }
 
+    fun cancelAll() {
+        WorkManager.getInstance(context).cancelAllWorkByTag(TAG)
+    }
+
     fun scheduleAll(games: List<Game>) {
         WorkManager.getInstance(context).cancelAllWorkByTag(TAG)
 
