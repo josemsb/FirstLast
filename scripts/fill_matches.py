@@ -205,13 +205,14 @@ def validate_and_resolve(match: dict, top5: list, bottom5: list,
 
 # ── Escritura en Firestore ────────────────────────────────────────────────────
 
-def write_game(db, league_key: str, game: dict, today: datetime):
+def write_game(db, league_key: str, game: dict, today_str: str):
     try:
         h, m = map(int, game["time_utc"].split(":"))
     except ValueError:
         h, m = 0, 0
 
-    match_dt = today.replace(hour=h, minute=m, second=0, microsecond=0)
+    y, mo, d = map(int, today_str.split("-"))
+    match_dt = datetime(y, mo, d, h, m, 0, tzinfo=timezone.utc)
 
     db.collection("game").add({
         "season"          : league_key,
@@ -278,7 +279,7 @@ def main():
         if not resolved:
             continue
 
-        write_game(db, league_key, resolved, today)
+        write_game(db, league_key, resolved, today_str)
         saved += 1
 
     print(f"\n✅ Proceso completado — {saved} partido(s) guardado(s) para {today_str}")
