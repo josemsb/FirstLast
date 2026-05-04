@@ -48,13 +48,15 @@ class GameActivity : ComponentActivity() {
             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
 
+        val onboardingPrefs = OnboardingPreferences(this)
+
         lifecycleScope.launch {
             gameViewModel.showAd.collect {
-                AdMobManager.showIfReady(this@GameActivity)
+                if (onboardingPrefs.onboardingShown) {
+                    AdMobManager.showIfReady(this@GameActivity)
+                }
             }
         }
-
-        val onboardingPrefs = OnboardingPreferences(this)
 
         setContent {
             val showOnboarding = remember { mutableStateOf(!onboardingPrefs.onboardingShown) }
