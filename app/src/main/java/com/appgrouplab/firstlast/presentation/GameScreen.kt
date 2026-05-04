@@ -111,11 +111,8 @@ fun GameScreen(viewModel: GameViewModel) {
                                 ),
                                 verticalArrangement = Arrangement.spacedBy(16.dp)
                             ) {
-                                state.games.forEachIndexed { index, game ->
-                                    item { GameCard(game = game) }
-                                    if (index == 0) {
-                                        item { NativeAdCard() }
-                                    }
+                                items(state.games) { game ->
+                                    GameCard(game = game)
                                 }
                             }
                         }
