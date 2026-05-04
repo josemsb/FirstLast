@@ -435,15 +435,13 @@ function buildLeagueChips(){
   const container = document.getElementById('league-checks');
   container.innerHTML = '';
   Object.entries(leagues).sort((a,b)=>a[1].localeCompare(b[1])).forEach(([k,v])=>{
-    const chip = document.createElement('label');
+    const chip = document.createElement('div');
     chip.className = 'league-chip' + (selectedLeagues.has(k) ? ' checked' : '');
-    chip.innerHTML = `<input type="checkbox" value="${k}">${v}`;
-    chip.querySelector('input').checked = selectedLeagues.has(k);
-    chip.onclick = (e) => {
-      const key = chip.querySelector('input').value;
-      if(selectedLeagues.has(key)) selectedLeagues.delete(key);
-      else selectedLeagues.add(key);
-      chip.classList.toggle('checked', selectedLeagues.has(key));
+    chip.textContent = v;
+    chip.onclick = () => {
+      if(selectedLeagues.has(k)) selectedLeagues.delete(k);
+      else selectedLeagues.add(k);
+      chip.classList.toggle('checked', selectedLeagues.has(k));
       activeTab = 0;
       renderPrompts();
     };
