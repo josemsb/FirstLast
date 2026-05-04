@@ -7,7 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.material3.MaterialTheme
+import com.appgrouplab.firstlast.ui.theme.FirstLastTheme
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.lifecycle.ViewModelProvider
@@ -74,7 +74,7 @@ class GameActivity : ComponentActivity() {
         setContent {
             val showOnboarding = remember { mutableStateOf(!onboardingPrefs.onboardingShown) }
 
-            MaterialTheme {
+            FirstLastTheme {
                 if (showOnboarding.value) {
                     OnboardingScreen(
                         onFinish = {
