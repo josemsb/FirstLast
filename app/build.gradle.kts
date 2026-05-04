@@ -84,7 +84,8 @@ dependencies {
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation("com.google.android.gms:play-services-ads:24.6.0")
+    implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("com.google.android.gms:play-services-ads:24.9.0")
     implementation(platform("androidx.compose:compose-bom:2025.04.01"))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.ui)
