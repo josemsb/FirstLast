@@ -155,6 +155,14 @@ HTML = r"""<!DOCTYPE html>
   #upload-status{font-size:.88rem;font-weight:600}
   .ok{color:var(--green)}.err{color:var(--red)}
   .empty{text-align:center;padding:32px;color:#9e9e9e;font-size:.9rem}
+  .day-btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+  .day-btn{padding:8px 16px;border:2px solid var(--border);border-radius:20px;background:#fff;cursor:pointer;font-size:.85rem;font-weight:600;color:#555;transition:all .2s}
+  .day-btn.active{border-color:var(--green);background:var(--green);color:#fff}
+  .prompt-box{width:100%;min-height:220px;padding:12px;border:1px solid var(--border);border-radius:8px;font-size:.82rem;font-family:monospace;line-height:1.5;resize:vertical;background:#f9f9f9;color:#212121}
+  .copy-bar{display:flex;align-items:center;gap:10px;margin-top:8px}
+  #copy-status{font-size:.8rem;color:var(--green);font-weight:600}
+  .section-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+  @media(max-width:600px){.section-row{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -164,6 +172,29 @@ HTML = r"""<!DOCTYPE html>
   <div id="firebase-badge" class="disconnected">Sin Firebase</div>
 </header>
 <main>
+
+  <!-- Generador de consulta Gemini -->
+  <div class="card">
+    <h2>🤖 Generar consulta para Gemini Studio</h2>
+    <div class="section-row">
+      <div>
+        <label>Torneo</label>
+        <select id="g-league" onchange="generatePrompt()"></select>
+      </div>
+      <div>
+        <label>Día</label>
+        <div class="day-btns" id="day-btns"></div>
+      </div>
+    </div>
+    <div style="margin-top:16px">
+      <label>Prompt generado — copia y pega en Gemini Studio</label>
+      <textarea class="prompt-box" id="prompt-output" readonly></textarea>
+      <div class="copy-bar">
+        <button class="btn btn-green" onclick="copyPrompt()">📋 Copiar prompt</button>
+        <span id="copy-status"></span>
+      </div>
+    </div>
+  </div>
 
   <!-- Formulario -->
   <div class="card">
@@ -231,11 +262,11 @@ async function loadMeta(){
 function populateSelects(){
   const today=new Date().toISOString().split('T')[0];
   document.getElementById('f-date').value=today;
-
   fillSelect('f-season', leagues, 'Selecciona liga');
   fillSelect('f-home',   teams,   'Selecciona local');
   fillSelect('f-away',   teams,   'Selecciona visitante');
 }
+
 
 function fillSelect(id, dict, placeholder){
   const sel=document.getElementById(id);
@@ -372,7 +403,110 @@ async function uploadAll(){
   }
 }
 
-loadMeta().then(loadMatches);
+// ── Generador de prompt ──────────────────────────────────────────────────────
+
+const DAY_LABELS = ['Hoy', 'Mañana', '+2 días', '+3 días'];
+let selectedDay = 0;
+
+function buildDayButtons(){
+  const container = document.getElementById('day-btns');
+  container.innerHTML = '';
+  DAY_LABELS.forEach((label, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'day-btn' + (i === selectedDay ? ' active' : '');
+    btn.textContent = label;
+    btn.onclick = () => { selectedDay = i; buildDayButtons(); generatePrompt(); };
+    container.appendChild(btn);
+  });
+}
+
+function getTargetDate(offset){
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  return d;
+}
+
+function formatDateISO(d){
+  return d.toISOString().split('T')[0];
+}
+
+function formatDateReadable(d){
+  return d.toLocaleDateString('es-PE', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+}
+
+function fillLeagueSelect(){
+  const sel = document.getElementById('g-league');
+  sel.innerHTML = '<option value="">— Selecciona torneo —</option>';
+  Object.entries(leagues).sort((a,b)=>a[1].localeCompare(b[1])).forEach(([k,v])=>{
+    const o = document.createElement('option');
+    o.value = k; o.textContent = v;
+    sel.appendChild(o);
+  });
+}
+
+function generatePrompt(){
+  const leagueKey  = document.getElementById('g-league').value;
+  const leagueName = leagues[leagueKey] || '';
+  const target     = getTargetDate(selectedDay);
+  const dateISO    = formatDateISO(target);
+  const dateHuman  = formatDateReadable(target);
+
+  if(!leagueKey){
+    document.getElementById('prompt-output').value = 'Selecciona un torneo para generar el prompt.';
+    return;
+  }
+
+  const jsonFormat = JSON.stringify([
+    {
+      season: leagueKey,
+      homeTeam: "id_equipo_local",
+      visitingTeam: "id_equipo_visitante",
+      homePosition: 1,
+      visitingPosition: 14,
+      date: dateISO,
+      time_utc: "HH:MM"
+    }
+  ], null, 2);
+
+  const prompt =
+`Eres un extractor de datos deportivos.
+
+Liga: ${leagueName}
+Fecha buscada: ${dateISO} (${dateHuman})
+
+TAREA:
+1. Busca en sofascore.com o flashscore.com la tabla de posiciones ACTUAL de ${leagueName}.
+2. Identifica el TOP 5 (posiciones 1-5) y el BOTTOM 5 (últimas 5 posiciones).
+3. Busca en el fixture/calendario de ${leagueName} si hay un partido programado el ${dateISO} donde un equipo del TOP 5 juegue contra uno del BOTTOM 5.
+
+REGLAS:
+- La fecha del partido en la fuente DEBE ser exactamente ${dateISO}
+- Si no hay partido ese día entre TOP 5 y BOTTOM 5, devuelve lista vacía []
+- El campo homeTeam y visitingTeam deben ser el nombre del equipo en minúsculas con guiones bajos (ej: "alianza_lima")
+- time_utc debe estar en formato HH:MM en UTC
+
+Devuelve SOLO este JSON, sin texto adicional:
+${jsonFormat}`;
+
+  document.getElementById('prompt-output').value = prompt;
+}
+
+function copyPrompt(){
+  const ta = document.getElementById('prompt-output');
+  if(!ta.value || ta.value.startsWith('Selecciona')) return;
+  navigator.clipboard.writeText(ta.value).then(()=>{
+    const s = document.getElementById('copy-status');
+    s.textContent = '✅ Copiado';
+    setTimeout(()=>{ s.textContent=''; }, 2000);
+  });
+}
+
+loadMeta().then(() => {
+  fillLeagueSelect();
+  buildDayButtons();
+  generatePrompt();
+  loadMatches();
+});
 </script>
 </body>
 </html>"""
