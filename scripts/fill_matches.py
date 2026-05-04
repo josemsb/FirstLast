@@ -9,7 +9,7 @@ import json
 import os
 import re
 import unicodedata
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
 import firebase_admin
 from firebase_admin import credentials, firestore
@@ -212,11 +212,6 @@ def write_game(db, league_key: str, game: dict, today: datetime):
     print(f"  ✅ Guardado: {game['home_key']} ({game['home_pos']}) "
           f"vs {game['away_key']} ({game['away_pos']}) — {game['time_utc']} UTC")
 
-def delete_old_games(db, cutoff: datetime):
-    old = db.collection("game").where("date", "<", cutoff).stream()
-    count = sum(1 for doc in old if not doc.reference.delete())
-    print(f"🗑️  Partidos eliminados anteriores a {cutoff.date()}: {count}")
-
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
@@ -236,9 +231,6 @@ def main():
     # Leer equipos desde Firestore (solo los IDs para el match)
     team_keys = {doc.id for doc in db.collection("team").stream()}
     print(f"👥 Equipos en Firestore: {len(team_keys)}\n")
-
-    # Limpiar partidos viejos
-    delete_old_games(db, today - timedelta(days=7))
 
     saved = 0
     for league_key, league_data in tournaments.items():
