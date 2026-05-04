@@ -16,7 +16,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.NotificationsOff
+import androidx.compose.material.icons.filled.NotificationsNone
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,7 +51,7 @@ fun SettingsDialog(
                         imageVector = if (notificationsEnabled)
                             Icons.Default.Notifications
                         else
-                            Icons.Default.NotificationsOff,
+                            Icons.Default.NotificationsNone,
                         contentDescription = null,
                         tint = if (notificationsEnabled) GreenFistLast
                                else MaterialTheme.colorScheme.onSurfaceVariant,
