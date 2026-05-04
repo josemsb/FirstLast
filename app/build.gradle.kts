@@ -95,9 +95,10 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:34.3.0"))
     implementation(libs.firebase.analytics)
     implementation(libs.firebase.perf)
+    implementation(libs.firebase.firestore)
+    implementation(libs.workmanager)
     implementation(libs.androidx.lifecycle.process)
 
-    implementation("com.google.genai:google-genai:1.50.0")
     implementation(libs.kotlinx.serialization.json)
 
     testImplementation(libs.junit)

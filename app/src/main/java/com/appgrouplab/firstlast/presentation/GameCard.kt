@@ -22,7 +22,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.appgrouplab.firstlast.model.Game
 import com.appgrouplab.firstlast.ui.theme.GreenFistLast
+import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -43,7 +46,12 @@ fun GameCard(game: Game) {
     )
 
     val formattedDate = try {
-        LocalDateTime.parse(game.dateTimeIso)
+        val instant = try {
+            Instant.parse(game.dateTimeIso)
+        } catch (_: Exception) {
+            LocalDateTime.parse(game.dateTimeIso).toInstant(ZoneOffset.UTC)
+        }
+        instant.atZone(ZoneId.systemDefault())
             .format(DateTimeFormatter.ofPattern("EEEE, dd MMM HH:mm", Locale("es", "ES")))
     } catch (_: Exception) {
         game.dateTimeIso

@@ -22,7 +22,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.appgrouplab.firstlast.data.TEAM_DICTIONARY
 
 @Composable
 fun TeamInfoLocal(
@@ -73,7 +72,7 @@ fun TeamInfoLocal(
         ) {
             Text(
                 modifier = Modifier.padding(top = 10.dp, bottom = 0.dp),
-                text = TEAM_DICTIONARY[teamName]?: teamName,
+                text = teamName,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,

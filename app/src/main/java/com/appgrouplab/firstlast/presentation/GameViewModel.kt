@@ -1,79 +1,113 @@
 package com.appgrouplab.firstlast.presentation
 
+import android.app.Application
 import android.util.Log
-import androidx.lifecycle.ViewModel
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.appgrouplab.firstlast.BuildConfig
+import com.appgrouplab.firstlast.data.GameRepository
 import com.appgrouplab.firstlast.data.GameState
-import com.appgrouplab.firstlast.data.GeminiGameRepository
+import com.appgrouplab.firstlast.data.NotificationScheduler
 import com.appgrouplab.firstlast.model.Game
+import com.appgrouplab.firstlast.model.League
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneOffset
 
 class GameViewModel(
-    private val repository: GeminiGameRepository,
+    application: Application,
+    private val repository: GameRepository,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO
-) : ViewModel() {
+) : AndroidViewModel(application) {
 
     private companion object { const val TAG = "GameViewModel" }
+
+    private val notificationScheduler = NotificationScheduler(application)
 
     private val _uiState = MutableStateFlow<GameUiState>(GameUiState.Loading)
     val uiState: StateFlow<GameUiState> = _uiState.asStateFlow()
 
-    init {
-        Log.d(TAG, "▶ ViewModel creado")
-        Log.d(TAG, "API Key presente: ${BuildConfig.GEMINI_API_KEY.isNotEmpty()}")
+    private val _selectedLeague = MutableStateFlow<String?>(null)
+    val selectedLeague: StateFlow<String?> = _selectedLeague.asStateFlow()
+
+    private var allGames: List<Game> = emptyList()
+    private var allLeagues: List<League> = emptyList()
+
+    init { loadTodayMatches() }
+
+    fun retry() {
+        _selectedLeague.value = null
         loadTodayMatches()
     }
 
-    fun retry() = loadTodayMatches()
+    fun setLeagueFilter(leagueKey: String?) {
+        _selectedLeague.value = leagueKey
+        applyFilter()
+    }
 
     private fun loadTodayMatches() {
-        Log.d(TAG, "loadTodayMatches() llamado")
         viewModelScope.launch(dispatcher) {
+            _uiState.value = GameUiState.Loading
+            val timerJob = launch { delay(3_000) }
+
+            var result: GameUiState = GameUiState.Loading
             repository.getTodayMatches().collect { state ->
-                Log.d(TAG, "Estado recibido: $state")
-                _uiState.value = when (state) {
-                    is GameState.Loading -> GameUiState.Loading
-                    is GameState.Success -> GameUiState.Success(sortAndFilter(state.games))
-                    is GameState.Error   -> GameUiState.Error(state.message)
+                if (state !is GameState.Loading) {
+                    result = when (state) {
+                        is GameState.Success -> {
+                            allGames   = sortAndFilter(state.games)
+                            allLeagues = state.leagues
+                            notificationScheduler.scheduleAll(allGames)
+                            GameUiState.Success(allGames, allLeagues)
+                        }
+                        is GameState.Error -> GameUiState.Error(state.message)
+                        else -> GameUiState.Loading
+                    }
                 }
             }
+
+            timerJob.join()
+            _uiState.value = result
         }
     }
 
+    private fun applyFilter() {
+        val key = _selectedLeague.value
+        val filtered = if (key == null) allGames else allGames.filter { it.league.key == key }
+        _uiState.value = GameUiState.Success(filtered, allLeagues)
+    }
+
     private fun sortAndFilter(games: List<Game>): List<Game> {
-        val now = LocalDateTime.now()
+        val nowInstant = Instant.now()
 
-        Log.d(TAG, "sortAndFilter: recibidos ${games.size} partidos del agente")
+        // TODO: restaurar filtro top5/bottom5 cuando termines de probar la UI
+//        val filtered = games.filter { game ->
+//            val h = game.home.pos
+//            val v = game.away.pos
+//            val bottomThreshold = game.leagueSize - 4
+//            ((h in 1..5) && (v >= bottomThreshold)) || ((v in 1..5) && (h >= bottomThreshold))
+//        }
+        val filtered = games
 
-        // Filter: one team in top 5, other in the last 5 of the table
-        val filtered = games.filter { game ->
-            val h = game.home.pos
-            val v = game.away.pos
-            val bottomThreshold = game.leagueSize - 4
-            val passes = ((h in 1..5) && (v >= bottomThreshold)) ||
-                         ((v in 1..5) && (h >= bottomThreshold))
-            if (!passes) Log.d(TAG, "  Descartado: ${game.home.name}($h) vs ${game.away.name}($v) liga=${game.league.key} size=${game.leagueSize} umbral=$bottomThreshold")
-            passes
-        }
-
-        Log.d(TAG, "sortAndFilter: ${filtered.size} partidos tras filtro top5/bottom5")
-
-        // Partition: upcoming matches (dateTime > now) vs past (dateTime <= now)
         val (upcoming, past) = filtered.partition { game ->
-            try { LocalDateTime.parse(game.dateTimeIso).isAfter(now) }
-            catch (_: Exception) { false }
+            try {
+                val instant = try {
+                    Instant.parse(game.dateTimeIso)
+                } catch (_: Exception) {
+                    LocalDateTime.parse(game.dateTimeIso).toInstant(ZoneOffset.UTC)
+                }
+                instant.isAfter(nowInstant)
+            } catch (_: Exception) { false }
         }
 
         Log.d(TAG, "sortAndFilter: ${upcoming.size} próximos + ${past.size} pasados")
 
-        // Upcoming: soonest first; Past: most recently started first
         return upcoming.sortedBy { it.dateTimeIso } +
                past.sortedByDescending { it.dateTimeIso }
     }
