@@ -1,18 +1,12 @@
-# Contenido temporal para prueba
+# ─── Kotlin ───────────────────────────────────────────────────────────────────
 -keepattributes Signature
--keepattributes RuntimeVisibleAnnotations, RuntimeInvisibleAnnotations
--keepattributes InnerClasses     # Útil para clases internas/anónimas
--keepattributes EnclosingMethod  # Útil para clases i
+-keepattributes RuntimeVisibleAnnotations,RuntimeInvisibleAnnotations
+-keepattributes InnerClasses,EnclosingMethod
+-keepattributes *Annotation*
 
- # With R8 full mode generic signatures are stripped for classes that are not
- # kept. Suspend functions are wrapped in continuations where the type argument
- # is used.
- -keep,allowobfuscation,allowshrinking class kotlin.coroutines.Continuation
-
-# Mantener Metadatos de Kotlin (Esencial para muchas funcionalidades de Kotlin)
 -keep class kotlin.Metadata { *; }
+-keep,allowobfuscation,allowshrinking class kotlin.coroutines.Continuation
 
-# Mantener Clases y Miembros relacionados con Coroutines (Buena práctica)
 -keepclassmembers class * extends kotlin.coroutines.jvm.internal.BaseContinuationImpl {
     <init>(kotlin.coroutines.Continuation);
     <fields>;
@@ -26,19 +20,71 @@
     <fields>;
 }
 
-# Añade aquí la regla -keep para la clase de datos específica si sabes cuál podría ser
-# Ejemplo: -keep class com.cie10.data.model.Usuario { *; }
-# O la regla amplia del paquete si es necesaria:
--keep class com.appgrouplab.firstlast.model.** { *; }
-
-
-# --- Sección para kotlinx.serialization ---
-# Descomenta o usa estas si utilizas KotlinxSerializationConverterFactory.
-# El plugin de Gradle a menudo añade reglas, pero estas son recomendadas si tienes problemas.
-# La regla `-keep class com.tuempresa.tuapp.modelo.** { *; }` de arriba es crucial.
+# ─── kotlinx.serialization ────────────────────────────────────────────────────
 -keep class **$$serializer { *; }
 -keepclassmembers class kotlinx.serialization.** { *; }
+-keepclassmembers @kotlinx.serialization.Serializable class * {
+    static ** Companion;
+    static ** INSTANCE;
+    kotlinx.serialization.KSerializer serializer(...);
+}
 
+# ─── App model & data classes (Firestore field mapping) ───────────────────────
+-keep class com.appgrouplab.firstlast.model.** { *; }
+-keep class com.appgrouplab.firstlast.data.** { *; }
+-keepclassmembers class com.appgrouplab.firstlast.** {
+    public <init>();
+    public <fields>;
+}
+
+# ─── Firebase ─────────────────────────────────────────────────────────────────
+-keep class com.google.firebase.** { *; }
+-keep class com.google.android.gms.internal.firebase** { *; }
+-dontwarn com.google.firebase.**
+-dontwarn com.google.android.gms.internal.firebase**
+
+# Firestore uses reflection to map document fields to POJO fields
+-keepclassmembers class * {
+    @com.google.firebase.firestore.PropertyName <fields>;
+    @com.google.firebase.firestore.PropertyName <methods>;
+}
+-keepclassmembers class com.appgrouplab.firstlast.model.** {
+    public <init>();
+    public ** get*();
+    public void set*(**);
+    <fields>;
+}
+
+# ─── Google Play Services / AdMob ─────────────────────────────────────────────
 -keep class com.google.android.gms.ads.** { *; }
-            -keep class com.google.android.gms.internal.ads.** { *; }
-            -dontwarn com.google.android.gms.internal.ads.**
+-keep class com.google.android.gms.internal.ads.** { *; }
+-dontwarn com.google.android.gms.internal.ads.**
+-keep class com.google.android.gms.common.** { *; }
+-dontwarn com.google.android.gms.**
+
+# Keep native ad view IDs used in native_ad.xml inflated by AdMob
+-keepclassmembers class com.google.android.gms.ads.nativead.NativeAdView { *; }
+-keepclassmembers class com.google.android.gms.ads.nativead.MediaView { *; }
+
+# ─── WorkManager ──────────────────────────────────────────────────────────────
+-keep class androidx.work.** { *; }
+-keep class * extends androidx.work.Worker { *; }
+-keep class * extends androidx.work.CoroutineWorker { *; }
+-keep class * extends androidx.work.ListenableWorker {
+    public <init>(android.content.Context, androidx.work.WorkerParameters);
+}
+
+# ─── Jetpack Compose ──────────────────────────────────────────────────────────
+-dontwarn androidx.compose.**
+-keep class androidx.compose.runtime.** { *; }
+
+# ─── AndroidX / Lifecycle ─────────────────────────────────────────────────────
+-keep class androidx.lifecycle.** { *; }
+-dontwarn androidx.lifecycle.**
+
+# ─── Suppress common warnings ─────────────────────────────────────────────────
+-dontwarn org.bouncycastle.**
+-dontwarn org.conscrypt.**
+-dontwarn org.openjsse.**
+-dontwarn javax.annotation.**
+-dontwarn sun.misc.Unsafe
