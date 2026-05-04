@@ -40,7 +40,11 @@ def call_gemini(client, prompt: str) -> str:
         temperature=0.0,
         max_output_tokens=4096,
     )
-    return client.models.generate_content(MODEL, prompt, config).text or ""
+    return client.models.generate_content(
+        model=MODEL,
+        contents=prompt,
+        config=config,
+    ).text or ""
 
 # ── Normalización y match de keys ────────────────────────────────────────────
 
