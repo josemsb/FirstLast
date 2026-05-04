@@ -1,0 +1,11 @@
+[
+  {
+    "season":           "liga_peruana",
+    "homeTeam":         "alianza_lima",
+    "visitingTeam":     "deportivo_garcilaso",
+    "homePosition":     1,
+    "visitingPosition": 14,
+    "date":             "2026-05-05",
+    "time_utc":         "18:00"
+  }
+]

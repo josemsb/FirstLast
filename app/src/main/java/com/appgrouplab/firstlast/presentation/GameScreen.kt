@@ -15,6 +15,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -31,17 +34,20 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -56,10 +62,14 @@ import com.appgrouplab.firstlast.model.League
 import com.appgrouplab.firstlast.ui.theme.GreenFistLast
 import kotlinx.coroutines.delay
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GameScreen(viewModel: GameViewModel) {
-    val uiState        by viewModel.uiState.collectAsState()
-    val selectedLeague by viewModel.selectedLeague.collectAsState()
+    val uiState             by viewModel.uiState.collectAsState()
+    val selectedLeague      by viewModel.selectedLeague.collectAsState()
+    val isRefreshing        by viewModel.isRefreshing.collectAsState()
+    val notificationsEnabled by viewModel.notificationsEnabled.collectAsState()
+    var showSettings        by remember { mutableStateOf(false) }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -70,40 +80,48 @@ fun GameScreen(viewModel: GameViewModel) {
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            DashboardTopSection()
+            DashboardTopSection(onSettingsClick = { showSettings = true })
+            if (showSettings) {
+                SettingsDialog(
+                    notificationsEnabled  = notificationsEnabled,
+                    onToggleNotifications = { viewModel.toggleNotifications(it) },
+                    onDismiss             = { showSettings = false }
+                )
+            }
             when (val state = uiState) {
                 is GameUiState.Loading -> LoadingScreen()
 
                 is GameUiState.Success -> {
                     LeagueFilterRow(
-                        leagues          = state.leagues,
+                        leagues           = state.leagues,
                         selectedLeagueKey = selectedLeague,
-                        onSelect         = { viewModel.setLeagueFilter(it) }
+                        onSelect          = { viewModel.setLeagueFilter(it) }
                     )
-                    if (state.games.isEmpty()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(MaterialTheme.colorScheme.background),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "No hay partidos disponibles",
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                        }
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxHeight()
-                                .background(MaterialTheme.colorScheme.background),
-                            contentPadding = PaddingValues(
-                                start = 16.dp, end = 16.dp, top = 8.dp, bottom = 60.dp
-                            ),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            items(state.games) { game ->
-                                GameCard(game = game)
+                    PullToRefreshBox(
+                        isRefreshing = isRefreshing,
+                        onRefresh    = { viewModel.refresh() },
+                        modifier     = Modifier.fillMaxSize()
+                    ) {
+                        if (state.games.isEmpty()) {
+                            EmptyMatchesScreen()
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(MaterialTheme.colorScheme.background),
+                                contentPadding = PaddingValues(
+                                    start  = 16.dp,
+                                    end    = 16.dp,
+                                    top    = 8.dp,
+                                    bottom = 16.dp + WindowInsets.navigationBars
+                                        .asPaddingValues()
+                                        .calculateBottomPadding()
+                                ),
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                items(state.games) { game ->
+                                    GameCard(game = game)
+                                }
                             }
                         }
                     }
@@ -268,5 +286,49 @@ private fun LoadingScreen() {
                 modifier = Modifier.size(36.dp)
             )
         }
+    }
+}
+
+@Composable
+private fun EmptyMatchesScreen() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+    ) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(20.dp),
+                modifier = Modifier.padding(horizontal = 36.dp)
+            ) {
+                Text(text = "😴", fontSize = 56.sp)
+                Text(
+                    text = "Sin partidos hoy",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = GreenFistLast,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = "Te hemos buscado los partidos del top 5 vs los últimos 5 de cada tabla y hoy no hay.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.Gray,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = "↓ Desliza hacia abajo para volver a buscar",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.LightGray,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+        NativeAdCard(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
     }
 }

@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.dp
 import com.appgrouplab.firstlast.R
 
 @Composable
-fun DashboardTopSection() {
+fun DashboardTopSection(onSettingsClick: () -> Unit = {}) {
     val greenGradientBrush = Brush.verticalGradient(
         colors = listOf(Color(0xFF1E8E3E), Color(0xFF1E8E3E))
     )
@@ -40,7 +40,8 @@ fun DashboardTopSection() {
         GameHeader(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .statusBarsPadding()
+                .statusBarsPadding(),
+            onSettingsClick = onSettingsClick
         )
         Image(
             painter = painterResource(id = R.drawable.header),
