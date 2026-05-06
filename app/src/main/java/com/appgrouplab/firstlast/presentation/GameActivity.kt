@@ -7,7 +7,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import com.appgrouplab.firstlast.R
+import com.appgrouplab.firstlast.ui.theme.FirstLastTheme
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.lifecycle.ViewModelProvider
@@ -49,16 +54,21 @@ class GameActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        window.setBackgroundDrawableResource(R.color.window_background)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         enableEdgeToEdge()
+        window.setBackgroundDrawableResource(R.color.window_background)
         FirebaseApp.initializeApp(this)
         AdMobManager.preload(this)
 
         val onboardingPrefs = OnboardingPreferences(this)
 
-        // usuarios existentes: los anuncios están habilitados desde el inicio
         adsUnlocked = onboardingPrefs.onboardingShown
 
         lifecycleScope.launch {
@@ -74,28 +84,31 @@ class GameActivity : ComponentActivity() {
         setContent {
             val showOnboarding = remember { mutableStateOf(!onboardingPrefs.onboardingShown) }
 
-            MaterialTheme {
-                if (showOnboarding.value) {
-                    OnboardingScreen(
-                        onFinish = {
-                            onboardingPrefs.onboardingShown = true
-                            showOnboarding.value = false
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                // el launcher callback habilitará adsUnlocked tras 2s
-                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                            } else {
-                                lifecycleScope.launch {
-                                    delay(2_000)
-                                    unlockAds(showPending = false)
+            FirstLastTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color    = MaterialTheme.colorScheme.background
+                ) {
+                    if (showOnboarding.value) {
+                        OnboardingScreen(
+                            onFinish = {
+                                onboardingPrefs.onboardingShown = true
+                                showOnboarding.value = false
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                } else {
+                                    lifecycleScope.launch {
+                                        delay(2_000)
+                                        unlockAds(showPending = false)
+                                    }
                                 }
                             }
-                        }
-                    )
-                } else {
-                    GameScreen(gameViewModel)
+                        )
+                    } else {
+                        GameScreen(gameViewModel)
+                    }
                 }
             }
         }
     }
 }
-

@@ -52,13 +52,13 @@ fun TeamInfoLocal(
             } else {
                 Box(
                     modifier = Modifier
-                        .size(40.dp) // Tamaño del placeholder
-                        .background(Color.LightGray, CircleShape),
+                        .size(40.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = teamName.firstOrNull()?.toString() ?: "",
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
                     )

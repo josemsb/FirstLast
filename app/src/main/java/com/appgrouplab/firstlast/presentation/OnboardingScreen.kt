@@ -66,7 +66,7 @@ fun OnboardingScreen(onFinish: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White)
+            .background(MaterialTheme.colorScheme.background)
     ) {
         HorizontalPager(
             state    = pagerState,
@@ -84,7 +84,7 @@ fun OnboardingScreen(onFinish: () -> Unit) {
                     .statusBarsPadding()
                     .padding(top = 8.dp, end = 16.dp)
             ) {
-                Text("Saltar", color = Color.Gray, fontSize = 14.sp)
+                Text("Saltar", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
             }
         }
 
@@ -149,7 +149,7 @@ private fun OnboardingPageContent(page: OnboardingPage) {
         Text(
             text      = page.description,
             style     = MaterialTheme.typography.bodyLarge,
-            color     = Color.Gray,
+            color     = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
             lineHeight = 26.sp
         )
@@ -169,7 +169,7 @@ private fun DotsIndicator(count: Int, current: Int) {
                     .height(8.dp)
                     .width(width)
                     .clip(CircleShape)
-                    .background(if (index == current) GreenFistLast else Color.LightGray)
+                    .background(if (index == current) GreenFistLast else MaterialTheme.colorScheme.outlineVariant)
             )
         }
     }

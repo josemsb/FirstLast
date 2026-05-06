@@ -73,12 +73,12 @@ fun TeamInfoVisitante(
                 Box(
                     modifier = Modifier
                         .size(40.dp)
-                        .background(Color.LightGray, CircleShape),
+                        .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = teamName.firstOrNull()?.toString() ?: "",
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
                     )

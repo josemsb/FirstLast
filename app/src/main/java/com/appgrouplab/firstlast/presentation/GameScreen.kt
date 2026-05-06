@@ -241,7 +241,7 @@ private fun LoadingScreen() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.White),
+            .background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -262,7 +262,7 @@ private fun LoadingScreen() {
             Text(
                 text = "está buscando los partidos de las ligas...",
                 style = MaterialTheme.typography.bodyMedium,
-                color = Color.Gray,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
 
@@ -318,13 +318,13 @@ private fun EmptyMatchesScreen() {
                 Text(
                     text = "Te hemos buscado los partidos del top 5 vs los últimos 5 de cada tabla y hoy no hay.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color.Gray,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
                 )
                 Text(
                     text = "↓ Desliza hacia abajo para volver a buscar",
                     style = MaterialTheme.typography.labelSmall,
-                    color = Color.LightGray,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                     textAlign = TextAlign.Center
                 )
             }
