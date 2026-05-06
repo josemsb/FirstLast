@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import com.appgrouplab.firstlast.R
 import com.appgrouplab.firstlast.ui.theme.FirstLastTheme
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,16 +54,21 @@ class GameActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        window.setBackgroundDrawableResource(R.color.window_background)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         enableEdgeToEdge()
+        window.setBackgroundDrawableResource(R.color.window_background)
         FirebaseApp.initializeApp(this)
         AdMobManager.preload(this)
 
         val onboardingPrefs = OnboardingPreferences(this)
 
-        // usuarios existentes: los anuncios están habilitados desde el inicio
         adsUnlocked = onboardingPrefs.onboardingShown
 
         lifecycleScope.launch {
@@ -106,4 +112,3 @@ class GameActivity : ComponentActivity() {
         }
     }
 }
-
