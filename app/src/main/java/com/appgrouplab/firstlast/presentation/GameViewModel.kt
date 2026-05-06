@@ -95,7 +95,7 @@ class GameViewModel(
                     }
                     _isRefreshing.value = false
                     refreshCount++
-                    if (refreshCount % AD_EVERY_N_REFRESHES == 0) {
+                    if (refreshCount % AD_EVERY_N_REFRESHES == 0 && allGames.isNotEmpty()) {
                         _showAd.tryEmit(Unit)
                     }
                 }
@@ -133,10 +133,12 @@ class GameViewModel(
             timerJob.join()
             _uiState.value = result
 
-            if (isFirstLoad && result is GameUiState.Success) {
+            if (isFirstLoad && result is GameUiState.Success && allGames.isNotEmpty()) {
                 isFirstLoad = false
                 delay(3_000)
                 _showAd.tryEmit(Unit)
+            } else if (isFirstLoad) {
+                isFirstLoad = false
             }
         }
     }
