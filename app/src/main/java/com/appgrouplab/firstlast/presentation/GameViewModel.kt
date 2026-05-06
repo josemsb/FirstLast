@@ -21,7 +21,9 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.ZoneOffset
 
 class GameViewModel(
@@ -146,7 +148,10 @@ class GameViewModel(
     }
 
     private fun sortAndFilter(games: List<Game>): List<Game> {
-        val nowInstant = Instant.now()
+        // Inicio del día de hoy en la zona horaria del dispositivo
+        val startOfToday = LocalDate.now(ZoneId.systemDefault())
+            .atStartOfDay(ZoneId.systemDefault())
+            .toInstant()
 
         // TODO: restaurar filtro top5/bottom5 cuando termines de probar la UI
 //        val filtered = games.filter { game ->
@@ -157,20 +162,19 @@ class GameViewModel(
 //        }
         val filtered = games
 
-        val (upcoming, past) = filtered.partition { game ->
+        val upcoming = filtered.filter { game ->
             try {
                 val instant = try {
                     Instant.parse(game.dateTimeIso)
                 } catch (_: Exception) {
                     LocalDateTime.parse(game.dateTimeIso).toInstant(ZoneOffset.UTC)
                 }
-                instant.isAfter(nowInstant)
+                !instant.isBefore(startOfToday)
             } catch (_: Exception) { false }
         }
 
-        Log.d(TAG, "sortAndFilter: ${upcoming.size} próximos + ${past.size} pasados")
+        Log.d(TAG, "sortAndFilter: ${upcoming.size} partidos desde hoy en adelante")
 
-        return upcoming.sortedBy { it.dateTimeIso } +
-               past.sortedByDescending { it.dateTimeIso }
+        return upcoming.sortedBy { it.dateTimeIso }
     }
 }

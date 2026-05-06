@@ -9,6 +9,9 @@ import com.google.firebase.firestore.firestore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.tasks.await
+import com.google.firebase.Timestamp
+import java.time.LocalDate
+import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
@@ -28,14 +31,13 @@ class GameRepository {
             val teams       = teamsSnap.documents.associate { it.id to (it.getString("name") ?: it.id) }
             val tournaments = tournamentsSnap.documents.associate { it.id to (it.getString("name") ?: it.id) }
 
-            // TODO: restaurar filtro por fecha cuando termines de probar
-//            val today = LocalDate.now(ZoneOffset.UTC)
-//            val startOfDay = today.atStartOfDay(ZoneOffset.UTC).toInstant()
-//            val endOfDay = today.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant()
+            // Inicio del día de hoy en la zona horaria del dispositivo
+            val startOfToday = LocalDate.now(ZoneId.systemDefault())
+                .atStartOfDay(ZoneId.systemDefault())
+                .toInstant()
 
             val gamesSnap = db.collection("game")
-//                .whereGreaterThanOrEqualTo("date", Timestamp(startOfDay.epochSecond, 0))
-//                .whereLessThan("date", Timestamp(endOfDay.epochSecond, 0))
+                .whereGreaterThanOrEqualTo("date", Timestamp(startOfToday.epochSecond, 0))
                 .get()
                 .await()
 
